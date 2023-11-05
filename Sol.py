@@ -1,4 +1,5 @@
 from input import *
+import random
 
 
 class Sol:
@@ -133,11 +134,65 @@ class Sol:
                                 self.departure_times.append(0)
                                 self.routes.append(new_route)
                                 break
+        
+        
+        
         elif method == 'method2':
             """
             第二种初始化方式，由石一鸣完成
             """
-            pass
+            # 第二种初始化方式
+
+            # 构造一个包含若干辆空车的空解
+            num_vehicles = maximum_vehicle[1] + maximum_vehicle[2]
+            self.routes = [[0, 0] for _ in range(num_vehicles)]
+            self.vehicle_types = [1] * maximum_vehicle[1] + [2] * maximum_vehicle[2]
+            self.departure_times = [0] * num_vehicles
+
+            # 对所有的商户按照最晚服务时间从早到晚排列，得到一个商户列表
+            sorted_ids = self.get_sorted_customer()
+
+            # 从列表的前Z个商户中随机选择一个商户进行插入
+            Z = 10  # 假设前Z个可以设置为10
+            if Z > len(sorted_ids):
+                Z = len(sorted_ids)
+            chosen_customer = random.choice(sorted_ids[:Z])  # 随机选中其中一个
+            
+            best_route = None  # 存储插入chosen_customer时目标函数增加最小的路径的索引
+            best_position = None  # 存储插入chosen_customer时目标函数增加最小的位置，即插入到best_route的哪个位置
+            best_increase = float('inf')
+            
+            for i, route in enumerate(routes):  # 遍历每一辆车的路径
+                # 计算原始的目标函数值
+                # 因为我们在某一次特定的循环中只会改变某一辆车的路径，所以只需要计算这辆车带来的变化即可
+                obj_value = obj(route, vehicle_types[i], departure_times[i])
+        
+                for position in range(len(route)-1):  # 尝试在路径中插入新的顾客
+                    # 复制原列表
+                    route_new = route[:]    
+                    # 在序号为position的位置后面插入新元素
+                    route_new.insert(position+1, chosen_customer)
+                    obj_value_new = obj(route_new, vehicle_types[i], departure_times[i])  # 尝试插入chosen_customer后该route的目标函数值
+                    increase = obj_value_new - obj_value  # 插入该顾客带来的成本提高
+                    if increase < best_increase:  # 如果提高得很少，则就是我们想要的
+                        best_route = i
+                        best_position = position
+                        best_increase = increase
+            
+            # 注意: 这里未处理时间窗和里程约束违反的问题，需要在后续步骤中处理
+
+    ### 对所有的商户按照最晚服务时间从早到晚排列
+    def get_sorted_customer(self):
+        # 筛选出顾客
+        df_customer = df_nodes[df_nodes['type'] == 2]
+        # 按照最晚接收时间排序，并获取排序后的ID列表
+        sorted_ids = df_customer.sort_values('last_receive_tm').index.tolist()
+        return sorted_ids
+
+    
+
+
+
 
     def cost(self):
         """
