@@ -56,7 +56,7 @@ def cost_route(r, vehicle_type=1, depart_time=0):
 
 def relation(customer1, customer2):
     """
-    TODO: 商户关联度
+    TODO: 商户关联度(见论文5.5.6)
     :param customer1:
     :param customer2:
     :return:
