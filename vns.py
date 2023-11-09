@@ -61,6 +61,10 @@ def relation(customer1, customer2):
     :param customer2:
     :return:
     """
+    tij = df_distance.loc[(customer1, customer2), 'spend_tm']
+    return df_distance.loc[(customer1, customer2), 'distance'] +\
+        gamma_wt * max(df_nodes.loc[customer2, 'first_receive_tm'] - service_time - tij - df_nodes.loc[customer1, 'last_receive_tm'], 0) +\
+        gamma_tw * max(df_nodes.loc[customer1, 'first_receive_tm'] + service_time + tij - df_nodes.loc[customer2, 'last_receive_tm'], 0)
 
 
 def labeling(r, vehicle_type, departure_time):

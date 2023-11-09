@@ -32,6 +32,8 @@ eta_penalty = 50
 lam_min = 0.01
 lam_max = 10000
 lam0 = 10
+gamma_wt = 0.2  # 等待时间惩罚系数，用于计算商户关联度
+gamma_tw = 1.0  # 违反时间窗的惩罚系数
 
 # x_o = [[[[]]]]  # 四层依次是第k类车、第l辆、访问路径从i到O再到j，为方便起见x_o定义成与x同dim的
 # distance_matrix = [[]]  # 从i到j的距离矩阵,
