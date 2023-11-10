@@ -34,7 +34,6 @@ lam_max = 10000
 lam0 = 10
 gamma_wt = 0.2  # 等待时间惩罚系数，用于计算商户关联度
 gamma_tw = 1.0  # 违反时间窗的惩罚系数
-Gamma_N = int(len(index_customer) * 0.4)
 highest_relation_dict = {}  # 用于邻域拓展，记载每个客户节点的关联客户节点
 
 # x_o = [[[[]]]]  # 四层依次是第k类车、第l辆、访问路径从i到O再到j，为方便起见x_o定义成与x同dim的
@@ -59,6 +58,7 @@ def input_data():
 
 
 input_data()
+Gamma_N = int(len(index_customer) * 0.4)
 
 
 def relation(customer1, customer2):
@@ -72,4 +72,18 @@ def relation(customer1, customer2):
     return df_distance.loc[(customer1, customer2), 'distance'] +\
         gamma_wt * max(df_nodes.loc[customer2, 'first_receive_tm'] - service_time - tij - df_nodes.loc[customer1, 'last_receive_tm'], 0) +\
         gamma_tw * max(df_nodes.loc[customer1, 'first_receive_tm'] + service_time + tij - df_nodes.loc[customer2, 'last_receive_tm'], 0)
+
+
+# 构建每个节点的邻节点
+highest_relation_dict = np.load('neighbor_dict'+str(Gamma_N)+'.npy', allow_pickle=True).item()
+
+
+
+# 储存字典变量
+if __name__ == '__main__':
+
+    for i in index_customer:
+        highest_relation_dict[i] = sorted(index_customer, key=lambda x: relation(i, x) if x != i else float("inf"))[0: Gamma_N]
+    np.save('neighbor_dict'+str(Gamma_N)+'.npy', highest_relation_dict)
+    # 读字典变量
 

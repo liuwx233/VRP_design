@@ -123,7 +123,7 @@ def vns(sol: Sol, lam: float):
 
 def main():
     sol = Sol()
-    sol.initialization('method2')
+    sol.initialization('method1')
     sol.neighbor('2opt*')
     best_sol = sol
     lam = lam0  # 惩罚因子
@@ -155,3 +155,7 @@ def main():
         if iternum > 10000:
             pass
     return best_sol
+
+
+if __name__ == '__main__':
+    main()
