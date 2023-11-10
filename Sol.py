@@ -162,7 +162,7 @@ class Sol:
             best_position = None  # 存储插入chosen_customer时目标函数增加最小的位置，即插入到best_route的哪个位置
             best_increase = float('inf')
             
-            for i, route in enumerate(routes):  # 遍历每一辆车的路径
+            for i, route in enumerate(self.routes):  # 遍历每一辆车的路径
                 # 计算原始的目标函数值
                 # 因为我们在某一次特定的循环中只会改变某一辆车的路径，所以只需要计算这辆车带来的变化即可
                 obj_value = obj(route, vehicle_types[i], departure_times[i])
@@ -189,11 +189,6 @@ class Sol:
         sorted_ids = df_customer.sort_values('last_receive_tm').index.tolist()
         return sorted_ids
 
-    
-
-
-
-
     def cost(self):
         """
         计算当前解的成本。包含
@@ -217,47 +212,9 @@ class Sol:
 
     def penalty(self, lam):
         """
-        包含两部分的内容：违反时间约束的惩罚成本（单位：分钟）+违反电量约束的惩罚成本（单位：百米）
+        TODO: 包含三部分的内容：cost + 违反时间约束的惩罚成本（单位：分钟）+违反电量约束的惩罚成本（单位：百米）
         :return: 惩罚成本
         """
-        penalty_time = []
-        penalty_elec = []
-        for i in range(len(self.routes)):
-            path_time = self.departure_times[i]
-            charge = df_vehicle.loc[self.vehicle_types[i], 'driving_range']
-            res_charge = charge
-            time_penalty = 0
-            charge_penalty = 0
-
-            for j in range(len(self.routes[i])-1):
-                from_point = self.routes[i][j]
-                to_point = self.routes[i][j+1]
-
-                path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
-                if to_point != 0:
-                    time_penalty += max((path_time - df_nodes.loc[to_point, 'last_receive_tm']), 0)  # 晚到惩罚，单位：分钟
-                time_penalty += max((path_time - time_horizon), 0)  # 所有点超过time_horizon加一个额外的惩罚
-                if to_point != 0:  # 更新时间参数
-                    path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
-                if to_point == 0:
-                    path_time += 60
-                else:
-                    path_time += service_time
-
-                res_charge = res_charge - df_distance.loc[(from_point, to_point), 'distance']
-                if res_charge < 0:
-                    charge_penalty += -res_charge/100  # 电量惩罚，单位：百米
-                if to_point in index_recharge:  # 更新电量参数
-                    res_charge = charge
-                if to_point == 0:  # 回depot也可以充满的
-                    res_charge = charge
-
-            penalty_time.append(time_penalty)
-            penalty_elec.append(charge_penalty)
-
-        total_penalty_cost = sum(penalty_time) + sum(penalty_elec)
-
-        return total_penalty_cost
 
     def elec_constraint(self):
         """
@@ -417,84 +374,220 @@ class Sol:
         return self.elec_constraint()[0] and self.vol_constraint()[0] and self.weight_constraint()[0] \
             and self.time_constraint()[0] and self.cover_constraint()
 
-    def neighbor(self, method='2opt') -> list:
+    def neighbor(self, method='2opt*') -> list:
         """
         输出当前解的邻域
         TODO: 减小邻域范围
         :return:
         """
-        neighbor_num = 10  # 暂时设定为随机生成10个解，后面通过商户关联度来减小邻域
+        # neighbor_num = 10  # 暂时设定为随机生成10个解，后面通过商户关联度来减小邻域
         neighbor_ls = []
-        for i in range(neighbor_num):
+        for i in range(Gamma_N):
             neighbor_sol = self.copy()
             if method == '2opt*':
                 # 随机选择两条路径，随机选择一个位置断开并进行交叉重连
-                select_routes_num = random.sample(range(0, len(neighbor_sol.routes)), 2)
-                r1 = neighbor_sol.routes[select_routes_num[0]]
-                r2 = neighbor_sol.routes[select_routes_num[1]]
-                select_r1_node = random.sample(r1[1:len(r1) - 1], 1)[0]
-                select_r2_node = random.sample(r2[1:len(r2) - 1], 1)[0]
-                new_r1 = r1[0: select_r1_node] + r2[select_r2_node: len(r2)]
-                new_r2 = r1[select_r1_node: len(r1)] + r2[0: select_r2_node]
-                neighbor_sol.routes[select_routes_num[0]] = new_r1
-                neighbor_sol.routes[select_routes_num[1]] = new_r2
+
+                # 随机选择两个点，第一个点和第二个点的路进行交叉  A-> 1 -> B, C-> 2 -> D  变为 A->2->D, C->1->B, 当然1，2不在一条路上
+                # 随机选取一条路上的一个点
+                # r1_ind = random.sample(range(len(self.routes)), 1)[0]
+                # r1 = self.routes[r1_ind]
+                # r1_node_ind = random.sample(range(1, len(r1) - 1), 1)[0]
+                # r1_node = r1[r1_node_ind]
+                # while r1_node not in index_customer:
+                #     r1_node_ind = random.sample(range(1, len(r1) - 1), 1)[0]
+                #     r1_node = r1[r1_node_ind]
+                # # 再遍历所有的路，看路上节点与该路关联
+                # for r2_ind, r2 in enumerate(self.routes):
+                #     if r1_ind == r2_ind:
+                #         continue
+                #     for r2_node_ind, r2_node in enumerate(r2):
+                #         if r2_node not in index_customer:
+                #             continue
+                #         if relation(r1_node, r2_node) > highest_relation_dict[r1_node]:  # 关联度不高的节点不予考虑
+                #             continue
+                #         # 交换r1_node和r2_node两条路
+                #         neighbor_sol = self.copy()
+                #         new_r1 = r1[0: r1_node_ind] + r2[r2_node_ind: len(r2)]
+                #         new_r2 = r1[r1_node_ind: len(r1)] + r2[0: r2_node_ind]
+                #         neighbor_sol.routes[r1_ind] = new_r1
+                #         neighbor_sol.routes[r2_ind] = new_r2
+                #         neighbor_ls.append(neighbor_sol)
+                node1 = random.sample(index_customer, 1)[0]
+                # 找到node1对应的路径r1
+                r1 = []
+                r1_ind = -1
+                for r1_ind_, r1_ in enumerate(self.routes):
+                    if node1 in r1_:
+                        r1 = r1_
+                        r1_ind = r1_ind_
+                        break
+                node1_index = r1.index(node1)
+                # 找一个node1的关联度高的点
+                node2 = random.sample(highest_relation_dict[node1], 1)[0]
+                while node2 in r1:
+                    node2 = random.sample(highest_relation_dict[node1], 1)[0]
+                # 找node2所属路径
+                r2 = []
+                r2_ind = -1
+                for r2_ind_, r2_ in enumerate(self.routes):
+                    if node2 in r2:
+                        r2 = r2_
+                        r2_ind = r2_ind_
+                        break
+                node2_index = r2.index(node2)
+                # 交换r1, r2
+                new_r1 = r1[0: node1_index] + r2[node2_index: len(r2)]
+                new_r2 = r2[0: node2_index] + r1[node1_index: len(r1)]
+                neighbor_sol.routes[r1_ind] = new_r1
+                neighbor_sol.routes[r2_ind] = new_r2
+
             if method == 'relocate':
-                # 随机选择一个客户节点，
-                select_route_num = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
-                r1 = neighbor_sol.routes[select_route_num]
-                select_node = -1
-                while select_node not in index_customer:
-                    select_node = random.sample(r1[1:len(r1)-1], 1)[0]
-                # 将其插入到另一个条路的另一个位置
-                select_route_num = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
-                r2 = neighbor_sol.routes[select_route_num]
-                pos = random.sample(range(1, len(r2)), 1)[0]  # 插入到pos之前
-                neighbor_sol.routes[select_route_num].insert(select_node, pos)
-            if method == 'swap':
-                # 随机选两个客户节点点并交换位置
-                select_route_num1 = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
-                r1 = neighbor_sol.routes[select_route_num1]
-                select_node_num1 = -1
-                select_node1 = -1
-                while select_node1 not in index_customer:
-                    select_node_num1 = random.sample(list(range(1, len(r1) - 1)), 1)[0]
-                    select_node1 = r1[select_node_num1]
-                select_route_num2 = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
-                r2 = neighbor_sol.routes[select_route_num2]
-                select_node_num2 = -1
-                select_node2 = -1
-                while select_node2 not in index_customer:
-                    select_node_num2 = random.sample(list(range(1, len(r2) - 1)), 1)[0]
-                    select_node2 = r2[select_node_num2]
-                neighbor_sol.routes[select_route_num1][select_node_num1] = select_node2
-                neighbor_sol.routes[select_route_num2][select_node_num2] = select_node1
-            if method == 'insert_remove':
-                flag = random.sample([0, 1], 1)[0]
-                if flag == 0:
-                    # 随机插入一个充电站
-                    select_route_num1 = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
-                    r1 = neighbor_sol.routes[select_route_num1]
-                    select_node_pos = random.sample(list(range(2, len(r1))), 1)[0]
-                    select_recharge = random.sample(index_recharge, 1)[0]
-                    neighbor_sol.routes[select_route_num1].insert(select_recharge, select_node_pos)
-                else:
-                    # 随机删除一个充电站
-                    deleted = False
-                    while not deleted:
-                        # 随机选择一条路
+                # # 随机选择一个客户节点，
+                # select_route_num = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
+                # r1 = neighbor_sol.routes[select_route_num]
+                # select_node = -1
+                # while select_node not in index_customer:
+                #     select_node = random.sample(r1[1:len(r1)-1], 1)[0]
+                # # 将其插入到另一个条路的另一个位置
+                # select_route_num = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
+                # r2 = neighbor_sol.routes[select_route_num]
+                # pos = random.sample(range(1, len(r2)), 1)[0]  # 插入到pos之前
+                # neighbor_sol.routes[select_route_num].insert(select_node, pos)
+
+                # 随机选择一个客户节点，插入到另一个点的前面，两个点的relation必须达到标准
+                node1 = random.sample(index_customer, 1)[0]
+                node2 = random.sample(highest_relation_dict[node1], 1)[0]
+                r1, r1_ind = [], -1
+                r2, r2_ind = [], -1
+                r1_found, r2_found = False, False
+                for r_ind, r in enumerate(self.routes):
+                    if node1 in r:
+                        r1 = r
+                        r1_ind = r_ind
+                        r1_found = True
+                    if node2 in r:
+                        r2 = r
+                        r2_ind = r_ind
+                        r2_found = True
+                    if r1_found and r2_found:
+                        break
+                node1_index = r1.index(node1)
+                node2_index = r2.index(node2)
+                neighbor_sol = self.copy()
+                del neighbor_sol.routes[r1_ind][node1_index]
+                neighbor_sol.routes[r2_ind].insert(node1, node2_index)
+
+                if method == 'swap':
+                    # 随机选两个客户节点点并交换位置
+                    # select_route_num1 = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
+                    # r1 = neighbor_sol.routes[select_route_num1]
+                    # select_node_num1 = -1
+                    # select_node1 = -1
+                    # while select_node1 not in index_customer:
+                    #     select_node_num1 = random.sample(list(range(1, len(r1) - 1)), 1)[0]
+                    #     select_node1 = r1[select_node_num1]
+                    # select_route_num2 = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
+                    # r2 = neighbor_sol.routes[select_route_num2]
+                    # select_node_num2 = -1
+                    # select_node2 = -1
+                    # while select_node2 not in index_customer:
+                    #     select_node_num2 = random.sample(list(range(1, len(r2) - 1)), 1)[0]
+                    #     select_node2 = r2[select_node_num2]
+                    # neighbor_sol.routes[select_route_num1][select_node_num1] = select_node2
+                    # neighbor_sol.routes[select_route_num2][select_node_num2] = select_node1
+
+                    node1 = random.sample(index_customer, 1)[0]
+                    node2 = random.sample(highest_relation_dict[node1], 1)[0]
+                    r1, r1_ind = [], -1
+                    r2, r2_ind = [], -1
+                    r1_found, r2_found = False, False
+                    for r_ind, r in enumerate(self.routes):
+                        if node1 in r:
+                            r1 = r
+                            r1_ind = r_ind
+                            r1_found = True
+                        if node2 in r:
+                            r2 = r
+                            r2_ind = r_ind
+                            r2_found = True
+                        if r1_found and r2_found:
+                            break
+                    node1_index = r1.index(node1)
+                    node2_index = r2.index(node2)
+                    neighbor_sol = self.copy()
+                    # 交换两个点
+                    neighbor_sol.routes[r1_ind][node1_index] = node2
+                    neighbor_sol.routes[r2_ind][node2_index] = node1
+
+                if method == 'insert_remove':
+                    flag = random.sample([0, 1], 1)[0]
+                    if flag == 0:
+                        # 随机插入一个充电站
                         select_route_num1 = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
                         r1 = neighbor_sol.routes[select_route_num1]
-                        # 遍历该路，确定该路的充电站
-                        recharge_pos = []
-                        for i in range(1, len(r1) - 1):
-                            if r1[i] in index_recharge:
-                                recharge_pos.append(i)
-                        if len(recharge_pos) == 0:
-                            continue
-                        select_del_pos = random.sample(recharge_pos, 1)[0]
-                        del neighbor_sol.routes[select_route_num1][select_del_pos]
-            neighbor_ls.append(neighbor_sol)
+                        select_node_pos = random.sample(list(range(2, len(r1))), 1)[0]
+                        select_recharge = random.sample(index_recharge, 1)[0]
+                        neighbor_sol.routes[select_route_num1].insert(select_recharge, select_node_pos)
+                    else:
+                        # 随机删除一个充电站
+                        deleted = False
+                        while not deleted:
+                            # 随机选择一条路
+                            select_route_num1 = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
+                            r1 = neighbor_sol.routes[select_route_num1]
+                            # 遍历该路，确定该路的充电站
+                            recharge_pos = []
+                            for i in range(1, len(r1) - 1):
+                                if r1[i] in index_recharge:
+                                    recharge_pos.append(i)
+                            if len(recharge_pos) == 0:
+                                continue
+                            select_del_pos = random.sample(recharge_pos, 1)[0]
+                            del neighbor_sol.routes[select_route_num1][select_del_pos]
+
+                neighbor_ls.append(neighbor_sol)
+
         return neighbor_ls
+
+    def recycle_opt(self):
+        """
+        输出将当前解按照recycle原则改善之后的解。
+        对于每个路径，找和它的结束时间相差60以上的、最近出发的路径
+        :return:
+        """
+        routes_copy = copy.deepcopy(self.routes)
+        vehicle_types_copy = copy.deepcopy(self.vehicle_types)
+        departure_times_copy = copy.deepcopy(self.departure_times)
+
+        # 对于所有的路径按照出发时间从小到大的顺序进行排序
+        sorted_index = sorted(range(len(departure_times_copy)), key=lambda i: departure_times_copy[i])
+        sorted_routes = [routes_copy[i] for i in sorted_index]
+        sorted_vehicle_types = [vehicle_types_copy[i] for i in sorted_index]
+        sorted_departure_times = [departure_times_copy[i] for i in sorted_index]
+
+        i = 0
+        while i < len(sorted_routes):
+            path_time = sorted_departure_times[i]
+            for k in range(len(sorted_routes)-1):  # 算这条路可以走完所耗的时间
+                from_point = sorted_routes[k]
+                to_point = sorted_routes[k+1]
+                path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
+                if to_point == 0:
+                    path_time += 60
+                else:
+                    path_time += max(df_nodes.loc[to_point, 'first_receive_tm'], path_time) + service_time
+            indices = [i for i, start_time in enumerate(sorted_departure_times) if (start_time - path_time) >= 0]
+            if len(indices) == 0:
+                i += 1
+            else:
+                choice_index = random.choice(indices)
+                sorted_routes[i] = sorted_routes[i] + sorted_routes[choice_index][1:]
+                sorted_vehicle_types[i] = max(sorted_vehicle_types[i], sorted_vehicle_types[choice_index])
+                del sorted_routes[choice_index]
+                del sorted_vehicle_types[choice_index]
+                del sorted_departure_times[choice_index]
+
+        return sorted_routes, sorted_vehicle_types, sorted_departure_times
 
     def departure_opt(self):
         """

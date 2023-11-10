@@ -34,6 +34,8 @@ lam_max = 10000
 lam0 = 10
 gamma_wt = 0.2  # 等待时间惩罚系数，用于计算商户关联度
 gamma_tw = 1.0  # 违反时间窗的惩罚系数
+Gamma_N = int(len(index_customer) * 0.4)
+highest_relation_dict = {}  # 用于邻域拓展，记载每个客户节点的关联客户节点
 
 # x_o = [[[[]]]]  # 四层依次是第k类车、第l辆、访问路径从i到O再到j，为方便起见x_o定义成与x同dim的
 # distance_matrix = [[]]  # 从i到j的距离矩阵,
@@ -57,3 +59,17 @@ def input_data():
 
 
 input_data()
+
+
+def relation(customer1, customer2):
+    """
+    TODO: 商户关联度(见论文5.5.6)
+    :param customer1:
+    :param customer2:
+    :return:
+    """
+    tij = df_distance.loc[(customer1, customer2), 'spend_tm']
+    return df_distance.loc[(customer1, customer2), 'distance'] +\
+        gamma_wt * max(df_nodes.loc[customer2, 'first_receive_tm'] - service_time - tij - df_nodes.loc[customer1, 'last_receive_tm'], 0) +\
+        gamma_tw * max(df_nodes.loc[customer1, 'first_receive_tm'] + service_time + tij - df_nodes.loc[customer2, 'last_receive_tm'], 0)
+

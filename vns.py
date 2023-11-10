@@ -1,7 +1,7 @@
 from Sol import *
 
 
-def cost_route(r, vehicle_type=1, depart_time=0):
+def cost_route(r, vehicle_type=1, depart_time=0, penalty=False, penalty_lam=0):
     """
     计算单独一条路的cost。包含
     1. 车辆固定成本
@@ -12,7 +12,7 @@ def cost_route(r, vehicle_type=1, depart_time=0):
     :param vehicle_type: 1或2,默认为1
     :param depart_time: 出发时间,默认为0
     :return: 这条路的成本
-    TODO: 重新实现目标函数，用route_based解定义，时间参数用前面已有的df_distance等变量
+    TODO: 重新实现目标函数，加入惩罚项
     """
     total_fix_cost = 0
     # if vehicle_type == 1:
@@ -52,19 +52,6 @@ def cost_route(r, vehicle_type=1, depart_time=0):
     total_cost = total_fix_cost + total_travel_cost + total_waiting_cost + total_charging_cost
 
     return total_cost
-
-
-def relation(customer1, customer2):
-    """
-    TODO: 商户关联度(见论文5.5.6)
-    :param customer1:
-    :param customer2:
-    :return:
-    """
-    tij = df_distance.loc[(customer1, customer2), 'spend_tm']
-    return df_distance.loc[(customer1, customer2), 'distance'] +\
-        gamma_wt * max(df_nodes.loc[customer2, 'first_receive_tm'] - service_time - tij - df_nodes.loc[customer1, 'last_receive_tm'], 0) +\
-        gamma_tw * max(df_nodes.loc[customer1, 'first_receive_tm'] + service_time + tij - df_nodes.loc[customer2, 'last_receive_tm'], 0)
 
 
 def labeling(r, vehicle_type, departure_time):
@@ -137,6 +124,7 @@ def vns(sol: Sol, lam: float):
 def main():
     sol = Sol()
     sol.initialization('method2')
+    sol.neighbor('2opt*')
     best_sol = sol
     lam = lam0  # 惩罚因子
     for iternum in range(15000):
