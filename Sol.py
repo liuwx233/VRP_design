@@ -217,9 +217,47 @@ class Sol:
 
     def penalty(self, lam):
         """
-        TODO: 包含三部分的内容：cost + 违反时间约束的惩罚成本（单位：分钟）+违反电量约束的惩罚成本（单位：百米）
+        包含两部分的内容：违反时间约束的惩罚成本（单位：分钟）+违反电量约束的惩罚成本（单位：百米）
         :return: 惩罚成本
         """
+        penalty_time = []
+        penalty_elec = []
+        for i in range(len(self.routes)):
+            path_time = self.departure_times[i]
+            charge = df_vehicle.loc[self.vehicle_types[i], 'driving_range']
+            res_charge = charge
+            time_penalty = 0
+            charge_penalty = 0
+
+            for j in range(len(self.routes[i])-1):
+                from_point = self.routes[i][j]
+                to_point = self.routes[i][j+1]
+
+                path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
+                if to_point != 0:
+                    time_penalty += max((path_time - df_nodes.loc[to_point, 'last_receive_tm']), 0)  # 晚到惩罚，单位：分钟
+                time_penalty += max((path_time - time_horizon), 0)  # 所有点超过time_horizon加一个额外的惩罚
+                if to_point != 0:  # 更新时间参数
+                    path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
+                if to_point == 0:
+                    path_time += 60
+                else:
+                    path_time += service_time
+
+                res_charge = res_charge - df_distance.loc[(from_point, to_point), 'distance']
+                if res_charge < 0:
+                    charge_penalty += -res_charge/100  # 电量惩罚，单位：百米
+                if to_point in index_recharge:  # 更新电量参数
+                    res_charge = charge
+                if to_point == 0:  # 回depot也可以充满的
+                    res_charge = charge
+
+            penalty_time.append(time_penalty)
+            penalty_elec.append(charge_penalty)
+
+        total_penalty_cost = sum(penalty_time) + sum(penalty_elec)
+
+        return total_penalty_cost
 
     def elec_constraint(self):
         """
@@ -457,46 +495,6 @@ class Sol:
                         del neighbor_sol.routes[select_route_num1][select_del_pos]
             neighbor_ls.append(neighbor_sol)
         return neighbor_ls
-
-    def recycle_opt(self):
-        """
-        输出将当前解按照recycle原则改善之后的解。
-        对于每个路径，找和它的结束时间相差60以上的、最近出发的路径
-        :return:
-        """
-        routes_copy = copy.deepcopy(self.routes)
-        vehicle_types_copy = copy.deepcopy(self.vehicle_types)
-        departure_times_copy = copy.deepcopy(self.departure_times)
-
-        # 对于所有的路径按照出发时间从小到大的顺序进行排序
-        sorted_index = sorted(range(len(departure_times_copy)), key=lambda i: departure_times_copy[i])
-        sorted_routes = [routes_copy[i] for i in sorted_index]
-        sorted_vehicle_types = [vehicle_types_copy[i] for i in sorted_index]
-        sorted_departure_times = [departure_times_copy[i] for i in sorted_index]
-
-        i = 0
-        while i < len(sorted_routes):
-            path_time = sorted_departure_times[i]
-            for k in range(len(sorted_routes)-1):  # 算这条路可以走完所耗的时间
-                from_point = sorted_routes[k]
-                to_point = sorted_routes[k+1]
-                path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
-                if to_point == 0:
-                    path_time += 60
-                else:
-                    path_time += max(df_nodes.loc[to_point, 'first_receive_tm'], path_time) + service_time
-            indices = [i for i, start_time in enumerate(sorted_departure_times) if (start_time - path_time) >= 0]
-            if len(indices) == 0:
-                i += 1
-            else:
-                choice_index = random.choice(indices)
-                sorted_routes[i] = sorted_routes[i] + sorted_routes[choice_index][1:]
-                sorted_vehicle_types[i] = max(sorted_vehicle_types[i], sorted_vehicle_types[choice_index])
-                del sorted_routes[choice_index]
-                del sorted_vehicle_types[choice_index]
-                del sorted_departure_times[choice_index]
-
-        return sorted_routes, sorted_vehicle_types, sorted_departure_times
 
     def departure_opt(self):
         """
