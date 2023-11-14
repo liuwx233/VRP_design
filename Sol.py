@@ -165,14 +165,14 @@ class Sol:
             for i, route in enumerate(self.routes):  # 遍历每一辆车的路径
                 # 计算原始的目标函数值
                 # 因为我们在某一次特定的循环中只会改变某一辆车的路径，所以只需要计算这辆车带来的变化即可
-                obj_value = obj(route, vehicle_types[i], departure_times[i])
+                obj_value = penalty_cost(route, vehicle_types[i], departure_times[i])
         
                 for position in range(len(route)-1):  # 尝试在路径中插入新的顾客
                     # 复制原列表
                     route_new = route[:]    
                     # 在序号为position的位置后面插入新元素
                     route_new.insert(position+1, chosen_customer)
-                    obj_value_new = obj(route_new, vehicle_types[i], departure_times[i])  # 尝试插入chosen_customer后该route的目标函数值
+                    obj_value_new = penalty_cost(route_new, vehicle_types[i], departure_times[i])  # 尝试插入chosen_customer后该route的目标函数值
                     increase = obj_value_new - obj_value  # 插入该顾客带来的成本提高
                     if increase < best_increase:  # 如果提高得很少，则就是我们想要的
                         best_route = i
