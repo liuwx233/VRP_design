@@ -280,7 +280,7 @@ class Sol:
                 to_point = self.routes[i][j+1]
 
                 path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
-                if to_point != 0:
+                if to_point >= 1 and to_point <= 1000:
                     time_penalty += max((path_time - df_nodes.loc[to_point, 'last_receive_tm']), 0)  # 晚到惩罚，单位：分钟
                 time_penalty += max((path_time - time_horizon), 0)  # 所有点超过time_horizon加一个额外的惩罚
                 if to_point != 0:  # 更新时间参数
