@@ -125,9 +125,9 @@ def local_search(sol: Sol, neighbor_structure, lam) -> Sol:
     while True:
         neighbor_ls = best_sol.neighbor(neighbor_structure)
         find_better = False
-        best_sol_value = best_sol.penalty(lam)
+        best_sol_value = best_sol.penalty_cost(lam)
         for n in neighbor_ls:
-            n_val = n.penalty(lam)
+            n_val = n.penalty_cost(lam)
             if n_val < best_sol_value:
                 find_better = True
                 best_sol_value = n_val
@@ -156,12 +156,12 @@ def vns(sol: Sol, lam: float):
         find_local_best = False
         while j < len(neighbor_structures_local):
             x_local = local_search(x_shaked, neighbor_structures_local[j], lam)
-            if x_local.penalty(lam) < x_shaked.penalty(lam):
+            if x_local.penalty_cost(lam) < x_shaked.penalty_cost(lam):
                 x_shaked = x_local
                 j = 0
             else:
                 j += 1
-            if x_local.penalty(lam) < best_sol.penalty(lam):
+            if x_local.penalty_cost(lam) < best_sol.penalty_cost(lam):
                 best_sol = x_local
                 find_local_best = True
                 best_sol_changed = True

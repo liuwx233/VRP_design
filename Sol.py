@@ -310,8 +310,8 @@ class Sol:
         TODO: 包含三部分的内容：cost + 违反时间约束的惩罚成本（单位：分钟）+违反电量约束的惩罚成本（单位：百米）
         :return: 惩罚成本
         """
-        total_cost = cost(self)
-        penalty_cost = penalty(self)
+        total_cost = self.cost(self)
+        penalty_cost = self.penalty(self)
         total_penalty_cost = total_cost + lam * penalty_cost
 
         return total_penalty_cost
