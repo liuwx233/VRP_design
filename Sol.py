@@ -274,32 +274,30 @@ class Sol:
             Z = 10  # 假设前Z个可以设置为10
             if Z > len(sorted_ids):
                 Z = len(sorted_ids)
-            chosen_customer = random.choice(sorted_ids[:Z])  # 随机选中其中一个
-            
-            best_route = None  # 存储插入chosen_customer时目标函数增加最小的路径的索引
-            best_position = None  # 存储插入chosen_customer时目标函数增加最小的位置，即插入到best_route的哪个位置
-            best_increase = float('inf')
-            
-            for i, route in enumerate(self.routes):  # 遍历每一辆车的路径
-                # 计算原始的目标函数值
-                # 因为我们在某一次特定的循环中只会改变某一辆车的路径，所以只需要计算这辆车带来的变化即可
-                if len(route) <= 2:
-                    obj_value = 0
-                else:
-                    obj_value = penalty_cost_route(route, self.vehicle_types[i], self.departure_times[i], lam0)
-        
-                for position in range(len(route)-1):  # 尝试在路径中插入新的顾客
-                    # 复制原列表
-                    route_new = route[:]    
-                    # 在序号为position的位置后面插入新元素
-                    route_new.insert(position+1, chosen_customer)
-                    obj_value_new = penalty_cost_route(route_new, self.vehicle_types[i], self.departure_times[i], lam0)  # 尝试插入chosen_customer后该route的目标函数值
-                    increase = obj_value_new - obj_value  # 插入该顾客带来的成本提高
-                    if increase < best_increase:  # 如果提高得很少，则就是我们想要的
-                        best_route = i
-                        best_position = position
-                        best_increase = increase
 
+            while sorted_ids:
+                if Z > len(sorted_ids):
+                    Z = len(sorted_ids)
+                chosen_customer = random.choice(sorted_ids[:Z])  # 随机选中其中一个
+                best_route = None  # 存储插入chosen_customer时目标函数增加最小的路径的索引
+                best_position = None  # 存储插入chosen_customer时目标函数增加最小的位置，即插入到best_route的哪个位置
+                best_increase = float('inf')
+
+                for i, route in enumerate(self.routes):  # 遍历每一辆车的路径
+                    # 计算原始的目标函数值
+                    # 因为我们在某一次特定的循环中只会改变某一辆车的路径，所以只需要计算这辆车带来的变化即可
+                    obj_value = penalty_cost_route(route, self.vehicle_types[i], self.departure_times[i], lam0)
+
+                    for position in range(len(route)-1):  # 尝试在路径中插入新的顾客
+                        # 复制原列表
+                        route_new = route[:]
+                        # 在序号为position的位置后面插入新元素
+                        route_new.insert(position+1, chosen_customer)
+                        obj_value_new = penalty_cost_route(route_new, self.vehicle_types[i], self.departure_times[i], lam0)  # 尝试插入chosen_customer后该route的目标函数值
+                        increase = obj_value_new - obj_value  # 插入该顾客带来的成本提高
+                        if increase < best_increase:  # 如果提高得很少，则就是我们想要的
+                            best_route = i
+                            best_position = position
 
             
             # 注意: 这里未处理时间窗和里程约束违反的问题，需要在后续步骤中处理

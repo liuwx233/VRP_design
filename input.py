@@ -58,7 +58,7 @@ def input_data():
 
 
 input_data()
-Gamma_N = int(len(index_customer) * 0.4)
+Gamma_N = int(len(index_customer) * 0.04)
 
 
 def relation(customer1, customer2):
