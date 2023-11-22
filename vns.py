@@ -90,16 +90,30 @@ def labeling(r, vehicle_type, departure_time):
             extension = 1
             #### 拓展1
             if extension == 1:
-                T[i+1] = max(T[i]+df_distance.loc[(r[i], r[i+1]), "spend_tm"], df_nodes.loc[r[i], "first_receive_tm"])+service_time
-                T_w[i+1] = T_w[i] + max(0, df_nodes.loc[r[i], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], r[i+1]), "spend_tm"])
-                W[i+1] = W[i] + df_nodes.loc[r[i+1], "pack_total_weight"])
-                V[i+1] = V[i] + df_nodes.loc[r[i+1], "pack_total_volume"])    
+                T[i+1] = max(T[i]+df_distance.loc[(r[i], r[i+1]), "spend_tm"], df_nodes.loc[r[i+1], "first_receive_tm"])+service_time
+                T_w[i+1] = T_w[i] + max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], r[i+1]), "spend_tm"])
+                W[i+1] = W[i] + df_nodes.loc[r[i+1], "pack_total_weight"]
+                V[i+1] = V[i] + df_nodes.loc[r[i+1], "pack_total_volume"]   
                 R[i+1] = R[i] + df_distance.loc[(r[i], r[i+1]), "distance"]
                 d[i+1] = d[i] + df_distance.loc[(r[i], r[i+1]), "distance"]
-                time_wait = max(0, df_nodes.loc[r[i], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], r[i+1]))
-                f[i+1] = f[i]+waiting_cost*time_wait+df_distance.loc[(from_point, to_point), 'distance'] * df_vehicle.loc[vehicle_types, 'unit_trans_cost'] / 1000
-                
-                
+                time_wait = max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], r[i+1]), "spend_tm"])
+                f[i+1] = f[i]+waiting_cost*time_wait+df_distance.loc[(r[i], r[i+1]), 'distance'] * df_vehicle.loc[vehicle_types, 'unit_trans_cost'] / 1000
+            
+            if extension == 3:
+                T[i+1] = max(T[i]+df_distance.loc[(r[i], 0), "spend_tm"]+service_time_depot, df_nodes.loc[r[i+1], "first_receive_tm"])+service_time
+                T_w[i+1] = T_w[i] + max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], 0), "spend_tm"]-service_time_depot-df_nodes.loc[(0, r[i+1]), "spend_tm"])
+                W[i+1] = df_nodes.loc[r[i+1], "pack_total_weight"]
+                V[i+1] = df_nodes.loc[r[i+1], "pack_total_volume"]
+                R[i+1] = df_distance.loc[(0, r[i+1]), "distance"]
+                d[i+1] = d[i] + df_distance.loc[(r[i], 0), "distance"] + df_distance.loc[(0, r[i+1]), "distance"]
+                time_wait = max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], 0), "spend_tm"]-service_time_depot-df_nodes.loc[(0, r[i+1]), "spend_tm"]) + service_time_depot
+                f[i+1] = f[i] + waiting_cost*time_wait + (df_distance.loc[(r[i], 0), 'distance']+df_distance.loc[(0, r[i+1]), 'distance']) * df_vehicle.loc[vehicle_types, 'unit_trans_cost'] / 1000
+
+
+
+
+            
+            
     r_ret = r
     vehicle_type_ret = vehicle_type
     return r_ret, vehicle_type_ret
