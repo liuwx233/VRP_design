@@ -1,57 +1,81 @@
 from Sol import *
 
 
-def cost_route(r, vehicle_type=1, depart_time=0, penalty=False, penalty_lam=0):
+# def cost_route(r, vehicle_type=1, depart_time=0, penalty=False, penalty_lam=0):
+#     """
+#     计算单独一条路的cost。包含
+#     1. 车辆固定成本
+#     2. travel cost
+#     3. waiting cost
+#     4. charging cost
+#     :param r: 如[0, 1, 0]
+#     :param vehicle_type: 1或2,默认为1
+#     :param depart_time: 出发时间,默认为0
+#     :return: 这条路的成本
+#     TODO: 重新实现目标函数，加入惩罚项
+#     """
+#     total_fix_cost = 0
+#     # if vehicle_type == 1:
+#     #     total_fix_cost = df_vehicle.iloc[0][8]
+#     # else:
+#     #     total_fix_cost = df_vehicle.iloc[1][8]
+#     total_fix_cost = df_vehicle.loc[vehicle_type, 'vehicle_cost']
+#
+#     total_travel_cost = 0
+#     for i in range(len(r)-1):
+#         from_point = r[i]
+#         to_point = r[i+1]
+#         total_travel_cost += df_distance.loc[(from_point, to_point), 'distance'] * df_vehicle.loc[vehicle_type, 'unit_trans_cost'] / 1000
+#
+#     total_waiting_cost = 0
+#     path_time = depart_time
+#     path_time_list = [depart_time]  # 注意这个list存储的均为到达时间
+#     for i in range(len(r)-1):
+#         from_point = r[i]
+#         to_point = r[i+1]
+#         path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
+#         path_time_list.append(path_time)
+#         if to_point != 0:
+#             total_waiting_cost += max((df_nodes.loc[to_point, 'first_receive_tm'] - path_time), 0) * waiting_cost
+#             path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
+#         if to_point == 0:
+#             path_time += 60
+#         else:
+#             path_time += service_time
+#         total_waiting_cost += (r.count(0) - 2) * waiting_cost * 60
+#
+#     total_charging_cost = 0
+#     for i in range(len(r)):
+#         if r[i] in index_recharge:
+#             total_charging_cost += charging_cost * service_time
+#
+#     total_cost = total_fix_cost + total_travel_cost + total_waiting_cost + total_charging_cost
+#
+#     return total_cost
+
+def find_nearest_recharge_station(node_i, node_j):
     """
-    计算单独一条路的cost。包含
-    1. 车辆固定成本
-    2. travel cost
-    3. waiting cost
-    4. charging cost
-    :param r: 如[0, 1, 0]
-    :param vehicle_type: 1或2,默认为1
-    :param depart_time: 出发时间,默认为0
-    :return: 这条路的成本
-    TODO: 重新实现目标函数，加入惩罚项
+    Find the recharge station with the minimum sum of distances to two customer nodes.
+
+    :param df_distance: DataFrame containing distances between nodes.
+    :param customer_nodes: Tuple of two customer node indices.
+    :param recharge_stations: List of indices of recharge stations.
+    :return: Index of the nearest recharge station.
     """
-    total_fix_cost = 0
-    # if vehicle_type == 1:
-    #     total_fix_cost = df_vehicle.iloc[0][8]
-    # else:
-    #     total_fix_cost = df_vehicle.iloc[1][8]
-    total_fix_cost = df_vehicle.loc[vehicle_type, 'vehicle_cost']
+    min_distance = float('inf')
+    nearest_station = None
 
-    total_travel_cost = 0
-    for i in range(len(r)-1):
-        from_point = r[i]
-        to_point = r[i+1]
-        total_travel_cost += df_distance.loc[(from_point, to_point), 'distance'] * df_vehicle.loc[vehicle_type, 'unit_trans_cost'] / 1000
+    # Iterate over each recharge station
+    for station in index_recharge:
+        # Calculate the sum of distances from the station to both customer nodes
+        distance_to_customers = df_distance.loc[(node_i, station), 'distance'] + df_distance.loc[(station, node_j), 'distance']
 
-    total_waiting_cost = 0
-    path_time = depart_time
-    path_time_list = [depart_time]  # 注意这个list存储的均为到达时间
-    for i in range(len(r)-1):
-        from_point = r[i]
-        to_point = r[i+1]
-        path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
-        path_time_list.append(path_time)
-        if to_point != 0:
-            total_waiting_cost += max((df_nodes.loc[to_point, 'first_receive_tm'] - path_time), 0) * waiting_cost
-            path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
-        if to_point == 0:
-            path_time += 60
-        else:
-            path_time += service_time
-        total_waiting_cost += (r.count(0) - 2) * waiting_cost * 60
+        # Check if this is the shortest distance found so far
+        if distance_to_customers < min_distance:
+            min_distance = distance_to_customers
+            nearest_station = station
 
-    total_charging_cost = 0
-    for i in range(len(r)):
-        if r[i] in index_recharge:
-            total_charging_cost += charging_cost * service_time
-
-    total_cost = total_fix_cost + total_travel_cost + total_waiting_cost + total_charging_cost
-
-    return total_cost
+    return nearest_station
 
 
 def labeling(r, vehicle_type, departure_time):
@@ -97,23 +121,29 @@ def labeling(r, vehicle_type, departure_time):
                 R[i+1] = R[i] + df_distance.loc[(r[i], r[i+1]), "distance"]
                 d[i+1] = d[i] + df_distance.loc[(r[i], r[i+1]), "distance"]
                 time_wait = max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], r[i+1]), "spend_tm"])
-                f[i+1] = f[i]+waiting_cost*time_wait+df_distance.loc[(r[i], r[i+1]), 'distance'] * df_vehicle.loc[vehicle_types, 'unit_trans_cost'] / 1000
-            
+                f[i+1] = f[i]+waiting_cost*time_wait+df_distance.loc[(r[i], r[i+1]), 'distance'] * df_vehicle.loc[vehicle_type, 'unit_trans_cost'] / 1000
+
+            if extension == 2:
+                k = find_nearest_recharge_station(r[i], r[i+1])
+                T[i+1] = max(T[i]+df_distance.loc[(r[i], k), "spend_tm"]+service_time+df_distance.loc[(k, r[i+1]), "spend_tm"], df_nodes.loc[r[i+1], "first_receive_tm"]) + service_time
+                T_w[i+1] = T_w[i] + max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], k), "spend_tm"]-service_time-df_nodes.loc[(k, r[i+1]), "spend_tm"])
+                W[i+1] = W[i] + df_nodes.loc[r[i+1], "pack_total_weight"]
+                V[i+1] = V[i] + df_nodes.loc[r[i+1], "pack_total_volume"]
+                R[i+1] = df_distance.loc[(k, r[i+1]), "distance"]
+                d[i+1] = d[i] + df_distance.loc[(r[i], k), "distance"] + df_distance.loc[(k, r[i+1]), "distance"]
+                time_wait = max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], k), "spend_tm"]-service_time-df_nodes.loc[(k, r[i+1]), "spend_tm"])
+                f[i+1] = f[i] + waiting_cost*time_wait + (df_distance.loc[(r[i], k), 'distance']+df_distance.loc[(k, r[i+1]), 'distance']) * df_vehicle.loc[vehicle_type, 'unit_trans_cost']/1000 + charging_cost*service_time
+
             if extension == 3:
-                T[i+1] = max(T[i]+df_distance.loc[(r[i], 0), "spend_tm"]+service_time_depot+df_distance.loc[(0,r[i+1]), "spend_tm"], df_nodes.loc[r[i+1], "first_receive_tm"])+service_time
+                T[i+1] = max(T[i]+df_distance.loc[(r[i], 0), "spend_tm"]+service_time_depot, df_nodes.loc[r[i+1], "first_receive_tm"])+service_time
                 T_w[i+1] = T_w[i] + max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], 0), "spend_tm"]-service_time_depot-df_nodes.loc[(0, r[i+1]), "spend_tm"])
                 W[i+1] = df_nodes.loc[r[i+1], "pack_total_weight"]
                 V[i+1] = df_nodes.loc[r[i+1], "pack_total_volume"]
                 R[i+1] = df_distance.loc[(0, r[i+1]), "distance"]
                 d[i+1] = d[i] + df_distance.loc[(r[i], 0), "distance"] + df_distance.loc[(0, r[i+1]), "distance"]
                 time_wait = max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], 0), "spend_tm"]-service_time_depot-df_nodes.loc[(0, r[i+1]), "spend_tm"]) + service_time_depot
-                f[i+1] = f[i] + waiting_cost*time_wait + (df_distance.loc[(r[i], 0), 'distance']+df_distance.loc[(0, r[i+1]), 'distance']) * df_vehicle.loc[vehicle_types, 'unit_trans_cost'] / 1000
+                f[i+1] = f[i] + waiting_cost*time_wait + (df_distance.loc[(r[i], 0), 'distance']+df_distance.loc[(0, r[i+1]), 'distance']) * df_vehicle.loc[vehicle_type, 'unit_trans_cost'] / 1000
 
-
-
-
-            
-            
     r_ret = r
     vehicle_type_ret = vehicle_type
     return r_ret, vehicle_type_ret
@@ -175,7 +205,7 @@ def vns(sol: Sol, lam: float):
 
 def main():
     sol = Sol()
-    sol.initialization('method1')
+    sol.initialization('method2')
     sol.neighbor('2opt*')
     best_sol = sol
     lam = lam0  # 惩罚因子

@@ -2,6 +2,126 @@ from input import *
 import random
 
 
+def penalty_route(r, vehicle_type=1, depart_time=0):
+    """
+    包含两部分的内容：违反时间约束的惩罚成本（单位：分钟）+违反电量约束的惩罚成本（单位：百米）
+    要加上所有的cost！
+    :return: 惩罚成本
+    """
+    penalty_time = 0
+    penalty_elec = 0
+    charge = df_vehicle.loc[vehicle_type, 'driving_range']
+    res_charge = charge
+    path_time = depart_time
+
+    for j in range(len(r) - 1):
+        from_point = r[j]
+        to_point = r[j+1]
+
+        path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
+        if to_point != 0:
+            penalty_time += max((path_time - df_nodes.loc[to_point, 'last_receive_tm']), 0)  # 晚到惩罚，单位：分钟
+        penalty_time += max((path_time - time_horizon), 0)  # 所有点超过time_horizon加一个额外的惩罚
+        if to_point != 0:  # 更新时间参数
+            path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
+        if to_point == 0:
+            path_time += 60
+        else:
+            path_time += service_time
+
+        res_charge = res_charge - df_distance.loc[(from_point, to_point), 'distance']
+        if res_charge < 0:
+            penalty_elec += -res_charge / 100  # 电量惩罚，单位：百米
+        if to_point > 1000:  # 更新电量参数
+            res_charge = charge
+        if to_point == 0:  # 回depot也可以充满的
+            res_charge = charge
+
+    total_penalty_cost = penalty_time + penalty_elec
+
+    return total_penalty_cost
+
+
+def cost_route(r, vehicle_type=1, depart_time=0):
+    """
+    计算单独一条路的cost。包含
+    1. 车辆固定成本
+    2. travel cost
+    3. waiting cost
+    4. charging cost
+    :param r: 如[0, 1, 0]
+    :param vehicle_type: 1或2,默认为1
+    :param depart_time: 出发时间,默认为0
+    :return: 这条路的成本
+    TODO: 重新实现目标函数，加入惩罚项
+    """
+    total_fix_cost = 0
+    # if vehicle_type == 1:
+    #     total_fix_cost = df_vehicle.iloc[0][8]
+    # else:
+    #     total_fix_cost = df_vehicle.iloc[1][8]
+    total_fix_cost = df_vehicle.loc[vehicle_type, 'vehicle_cost']
+
+    total_travel_cost = 0
+    for i in range(len(r)-1):
+        from_point = r[i]
+        to_point = r[i+1]
+        total_travel_cost += df_distance.loc[(from_point, to_point), 'distance'] * df_vehicle.loc[vehicle_type, 'unit_trans_cost'] / 1000
+
+    total_waiting_cost = 0
+    path_time = depart_time
+    path_time_list = [depart_time]  # 注意这个list存储的均为到达时间
+    for i in range(len(r)-1):
+        from_point = r[i]
+        to_point = r[i+1]
+        path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
+        path_time_list.append(path_time)
+        if to_point != 0:
+            total_waiting_cost += max((df_nodes.loc[to_point, 'first_receive_tm'] - path_time), 0) * waiting_cost
+            path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
+        if to_point == 0:
+            path_time += 60
+        else:
+            path_time += service_time
+        total_waiting_cost += (r.count(0) - 2) * waiting_cost * 60
+
+    total_charging_cost = 0
+    for i in range(len(r)):
+        if r[i] in index_recharge:
+            total_charging_cost += charging_cost * service_time
+
+    total_cost = total_fix_cost + total_travel_cost + total_waiting_cost + total_charging_cost
+
+    return total_cost
+
+
+def penalty_cost_route(r, vehicle_type=1, depart_time=0, penalty=False, penalty_lam=0):
+    """
+    计算单独一条路的cost。包含
+    1. 车辆固定成本
+    2. travel cost
+    3. waiting cost
+    4. charging cost
+    :param r: 如[0, 1, 0]
+    :param vehicle_type: 1或2,默认为1
+    :param depart_time: 出发时间,默认为0
+    :return: 这条路的成本
+    TODO: 重新实现目标函数，加入惩罚项
+    """
+    total_cost_route = 0
+    total_penalty_route = 0
+    total_penalty_cost = 0
+
+    total_cost_route = cost_route(r, vehicle_type, depart_time)
+
+    if penalty == True:
+        total_penalty_route = penalty_route(r, vehicle_type, depart_time)
+
+    total_penalty_cost += total_cost_route + penalty_lam * total_penalty_route
+
+    return total_penalty_cost
+
+
 class Sol:
     def __init__(self):
         self.routes = []  # 初始解是由depot直达所有客户点，然后直接返回
@@ -134,9 +254,7 @@ class Sol:
                                 self.departure_times.append(0)
                                 self.routes.append(new_route)
                                 break
-        
-        
-        
+
         elif method == 'method2':
             """
             第二种初始化方式，由石一鸣完成
@@ -165,19 +283,24 @@ class Sol:
             for i, route in enumerate(self.routes):  # 遍历每一辆车的路径
                 # 计算原始的目标函数值
                 # 因为我们在某一次特定的循环中只会改变某一辆车的路径，所以只需要计算这辆车带来的变化即可
-                obj_value = penalty_cost(route, vehicle_types[i], departure_times[i])
+                if len(route) <= 2:
+                    obj_value = 0
+                else:
+                    obj_value = penalty_cost_route(route, self.vehicle_types[i], self.departure_times[i], lam0)
         
                 for position in range(len(route)-1):  # 尝试在路径中插入新的顾客
                     # 复制原列表
                     route_new = route[:]    
                     # 在序号为position的位置后面插入新元素
                     route_new.insert(position+1, chosen_customer)
-                    obj_value_new = penalty_cost(route_new, vehicle_types[i], departure_times[i])  # 尝试插入chosen_customer后该route的目标函数值
+                    obj_value_new = penalty_cost_route(route_new, self.vehicle_types[i], self.departure_times[i], lam0)  # 尝试插入chosen_customer后该route的目标函数值
                     increase = obj_value_new - obj_value  # 插入该顾客带来的成本提高
                     if increase < best_increase:  # 如果提高得很少，则就是我们想要的
                         best_route = i
                         best_position = position
                         best_increase = increase
+
+
             
             # 注意: 这里未处理时间窗和里程约束违反的问题，需要在后续步骤中处理
 
@@ -293,7 +416,7 @@ class Sol:
                 res_charge = res_charge - df_distance.loc[(from_point, to_point), 'distance']
                 if res_charge < 0:
                     charge_penalty += -res_charge/100  # 电量惩罚，单位：百米
-                if to_point in index_recharge:  # 更新电量参数
+                if to_point > 1000:  # 更新电量参数
                     res_charge = charge
                 if to_point == 0:  # 回depot也可以充满的
                     res_charge = charge
@@ -310,8 +433,8 @@ class Sol:
         TODO: 包含三部分的内容：cost + 违反时间约束的惩罚成本（单位：分钟）+违反电量约束的惩罚成本（单位：百米）
         :return: 惩罚成本
         """
-        total_cost = self.cost(self)
-        penalty_cost = self.penalty(self)
+        total_cost = self.cost()
+        penalty_cost = self.penalty()
         total_penalty_cost = total_cost + lam * penalty_cost
 
         return total_penalty_cost
@@ -339,7 +462,7 @@ class Sol:
                 res_charge = res_charge - df_distance.loc[(from_point, to_point), 'distance']
                 if res_charge < 0:
                     result.append((j, i))  # 第几条路的第几个节点
-                if to_point in index_recharge:
+                if to_point > 1000:
                     res_charge = charge
                 if to_point == 0:  # 回depot也可以充满的
                     res_charge = charge
