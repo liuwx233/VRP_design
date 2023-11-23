@@ -275,7 +275,7 @@ class Sol:
             if Z > len(sorted_ids):
                 Z = len(sorted_ids)
 
-            while sorted_ids:
+            while len(sorted_ids) > 0:
                 if Z > len(sorted_ids):
                     Z = len(sorted_ids)
                 chosen_customer = random.choice(sorted_ids[:Z])  # 随机选中其中一个
@@ -286,7 +286,10 @@ class Sol:
                 for i, route in enumerate(self.routes):  # 遍历每一辆车的路径
                     # 计算原始的目标函数值
                     # 因为我们在某一次特定的循环中只会改变某一辆车的路径，所以只需要计算这辆车带来的变化即可
-                    obj_value = penalty_cost_route(route, self.vehicle_types[i], self.departure_times[i], lam0)
+                    if len(route) <= 2:
+                        obj_value = 0
+                    else:
+                        obj_value = penalty_cost_route(route, self.vehicle_types[i], self.departure_times[i], lam0)
 
                     for position in range(len(route)-1):  # 尝试在路径中插入新的顾客
                         # 复制原列表
@@ -299,6 +302,8 @@ class Sol:
                             best_route = i
                             best_position = position
 
+                sorted_ids.remove(chosen_customer)
+                self.routes[best_route].insert(best_position + 1, chosen_customer)
             
             # 注意: 这里未处理时间窗和里程约束违反的问题，需要在后续步骤中处理
 

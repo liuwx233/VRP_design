@@ -205,7 +205,7 @@ def vns(sol: Sol, lam: float):
 
 def main():
     sol = Sol()
-    sol.initialization('method1')
+    sol.initialization('method2')
     best_sol = sol
     lam = lam0  # 惩罚因子
     for iternum in range(15000):
