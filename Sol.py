@@ -284,6 +284,15 @@ class Sol:
                 best_increase = float('inf')
 
                 for i, route in enumerate(self.routes):  # 遍历每一辆车的路径
+                    route_weight = df_nodes.loc[chosen_customer, 'pack_total_weight']
+                    route_volume = df_nodes.loc[chosen_customer, 'pack_total_volume']
+                    for j in route:
+                        if j==0: continue
+                        route_weight += df_nodes.loc[j, 'pack_total_weight']
+                        route_volume += df_nodes.loc[j, 'pack_total_volume']
+                    
+                    if (route_weight > df_vehicle.loc[self.vehicle_types[i], 'max_weight']) or (route_volume > df_vehicle.loc[self.vehicle_types[i], 'max_volume']):
+                        continue
                     # 计算原始的目标函数值
                     # 因为我们在某一次特定的循环中只会改变某一辆车的路径，所以只需要计算这辆车带来的变化即可
                     if len(route) <= 2:
@@ -306,6 +315,8 @@ class Sol:
                 self.routes[best_route].insert(best_position + 1, chosen_customer)
                 print(f"best route {best_route}, best position {best_position}")
                 sorted_ids.remove(chosen_customer)
+            
+            self.routes = [element for element in self.routes if element != [0, 0]]
 
             
             # 注意: 这里未处理时间窗和里程约束违反的问题，需要在后续步骤中处理
