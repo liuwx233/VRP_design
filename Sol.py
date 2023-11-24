@@ -127,6 +127,8 @@ class Sol:
         self.routes = []  # 初始解是由depot直达所有客户点，然后直接返回
         self.vehicle_types = []  # 初始车型随机分配
         self.departure_times = []  # 初始发车时间为0
+        self.cost_val = 0
+        self.penalty_val = 0
 
     def initialization(self, method):
         """
@@ -318,8 +320,8 @@ class Sol:
             
             self.routes = [element for element in self.routes if element != [0, 0]]
 
-            
-            # 注意: 这里未处理时间窗和里程约束违反的问题，需要在后续步骤中处理
+            self.cost_val = self.cost()
+            self.penalty_val = self.penalty()
 
     def copy(self):
         """
@@ -609,7 +611,7 @@ class Sol:
     def neighbor(self, method='2opt*') -> list:
         """
         输出当前解的邻域
-        TODO: 减小邻域范围
+        TODO: 通过在Sol中加入cost项增加计算效率
         :return:
         """
         # neighbor_num = 10  # 暂时设定为随机生成10个解，后面通过商户关联度来减小邻域
@@ -667,11 +669,25 @@ class Sol:
                         r2_ind = r2_ind_
                         break
                 node2_index = r2.index(node2)
-                # 交换r1, r2
+                # 更新成本并交换r1, r2
                 new_r1 = r1[0: node1_index] + r2[node2_index: len(r2)]
                 new_r2 = r2[0: node2_index] + r1[node1_index: len(r1)]
+
+                old_cost = cost_route(neighbor_sol.routes[r1_ind],  neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
+                    cost_route(neighbor_sol.routes[r2_ind],  neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
+                old_penalty = penalty_route(neighbor_sol.routes[r1_ind],  neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
+                    penalty_route(neighbor_sol.routes[r2_ind],  neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
+
                 neighbor_sol.routes[r1_ind] = new_r1
                 neighbor_sol.routes[r2_ind] = new_r2
+
+                new_cost = cost_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
+                    cost_route(neighbor_sol.routes[r2_ind], neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
+                new_penalty = penalty_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
+                    penalty_route(neighbor_sol.routes[r2_ind], neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
+
+                neighbor_sol.cost_val = neighbor_sol.cost_val + new_cost - old_cost
+                neighbor_sol.penalty_val = neighbor_sol.penalty_val + new_penalty - old_penalty
 
             if method == 'relocate':
                 # # 随机选择一个客户节点，
@@ -705,9 +721,22 @@ class Sol:
                         break
                 node1_index = r1.index(node1)
                 node2_index = r2.index(node2)
-                neighbor_sol = self.copy()
+
+                old_cost = cost_route(neighbor_sol.routes[r1_ind],  neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
+                    cost_route(neighbor_sol.routes[r2_ind],  neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
+                old_penalty = penalty_route(neighbor_sol.routes[r1_ind],  neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
+                    penalty_route(neighbor_sol.routes[r2_ind],  neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
+
                 del neighbor_sol.routes[r1_ind][node1_index]
                 neighbor_sol.routes[r2_ind].insert(node1, node2_index)
+
+                new_cost = cost_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
+                    cost_route(neighbor_sol.routes[r2_ind], neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
+                new_penalty = penalty_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
+                    penalty_route(neighbor_sol.routes[r2_ind], neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
+
+                neighbor_sol.cost_val = neighbor_sol.cost_val + new_cost - old_cost
+                neighbor_sol.penalty_val = neighbor_sol.penalty_val + new_penalty - old_penalty
 
             if method == 'swap':
                 # 随机选两个客户节点点并交换位置
@@ -746,27 +775,42 @@ class Sol:
                         break
                 node1_index = r1.index(node1)
                 node2_index = r2.index(node2)
-                neighbor_sol = self.copy()
+
                 # 交换两个点
+                old_cost = cost_route(neighbor_sol.routes[r1_ind],  neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
+                    cost_route(neighbor_sol.routes[r2_ind],  neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
+                old_penalty = penalty_route(neighbor_sol.routes[r1_ind],  neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
+                    penalty_route(neighbor_sol.routes[r2_ind],  neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
+
                 neighbor_sol.routes[r1_ind][node1_index] = node2
                 neighbor_sol.routes[r2_ind][node2_index] = node1
 
+                new_cost = cost_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
+                    cost_route(neighbor_sol.routes[r2_ind], neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
+                new_penalty = penalty_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
+                    penalty_route(neighbor_sol.routes[r2_ind], neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
+
+                neighbor_sol.cost_val = neighbor_sol.cost_val + new_cost - old_cost
+                neighbor_sol.penalty_val = neighbor_sol.penalty_val + new_penalty - old_penalty
+
             if method == 'insert_remove':
+
                 flag = random.sample([0, 1], 1)[0]
+                r1_ind = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
+                old_cost = cost_route(neighbor_sol.routes[r1_ind],  neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind])
+                old_penalty = penalty_route(neighbor_sol.routes[r1_ind],  neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind])
                 if flag == 0:
                     # 随机插入一个充电站
-                    select_route_num1 = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
-                    r1 = neighbor_sol.routes[select_route_num1]
+                    r1 = neighbor_sol.routes[r1_ind]
                     select_node_pos = random.sample(list(range(2, len(r1))), 1)[0]
                     select_recharge = random.sample(index_recharge, 1)[0]
-                    neighbor_sol.routes[select_route_num1].insert(select_recharge, select_node_pos)
+                    neighbor_sol.routes[r1_ind].insert(select_recharge, select_node_pos)
                 else:
                     # 随机删除一个充电站
                     deleted = False
                     while not deleted:
                         # 随机选择一条路
-                        select_route_num1 = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
-                        r1 = neighbor_sol.routes[select_route_num1]
+                        r1 = neighbor_sol.routes[r1_ind]
                         # 遍历该路，确定该路的充电站
                         recharge_pos = []
                         for i in range(1, len(r1) - 1):
@@ -775,7 +819,13 @@ class Sol:
                         if len(recharge_pos) == 0:
                             continue
                         select_del_pos = random.sample(recharge_pos, 1)[0]
-                        del neighbor_sol.routes[select_route_num1][select_del_pos]
+                        del neighbor_sol.routes[r1_ind][select_del_pos]
+
+                new_cost = cost_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind])
+                new_penalty = penalty_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind])
+
+                neighbor_sol.cost_val = neighbor_sol.cost_val + new_cost - old_cost
+                neighbor_sol.penalty_val = neighbor_sol.penalty_val + new_penalty - old_penalty
 
             neighbor_ls.append(neighbor_sol)
 
