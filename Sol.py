@@ -95,7 +95,7 @@ def cost_route(r, vehicle_type=1, depart_time=0):
     return total_cost
 
 
-def penalty_cost_route(r, vehicle_type=1, depart_time=0, penalty=False, penalty_lam=0):
+def penalty_cost_route(r, vehicle_type=1, depart_time=0, penalty=True, penalty_lam=0):
     """
     计算单独一条路的cost。包含
     1. 车辆固定成本
@@ -303,10 +303,10 @@ class Sol:
                             best_position = position
                             best_increase = increase
 
-            self.routes[best_route].insert(best_position + 1, chosen_customer)
-            print(f"best route {best_route}, best position {best_position}")
-            sorted_ids.remove(chosen_customer)
-                
+                self.routes[best_route].insert(best_position + 1, chosen_customer)
+                print(f"best route {best_route}, best position {best_position}")
+                sorted_ids.remove(chosen_customer)
+
             
             # 注意: 这里未处理时间窗和里程约束违反的问题，需要在后续步骤中处理
 
