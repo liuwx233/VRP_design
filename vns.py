@@ -174,7 +174,7 @@ def vns(sol: Sol, lam: float):
     :return: sol变邻域搜索之后的解, best_sol_changed: 搜索结果和原先解不同
     """
     neighbor_structures = ['2opt*', 'relocate', 'swap', 'insert_remove']
-    neighbor_structures_local = ['2opt*', 'relocate', 'swap', 'insert_remove']
+    neighbor_structures_local = ['2opt*', 'relocate', 'swap']
     i = 0
     best_sol = sol
     best_sol_changed = False
@@ -186,6 +186,7 @@ def vns(sol: Sol, lam: float):
         find_local_best = False
         while j < len(neighbor_structures_local):
             x_local = local_search(x_shaked, neighbor_structures_local[j], lam)
+            print("  local search of " + neighbor_structures_local[j] + " :", x_local.cost_val + lam * x_local.penalty_val)
             if x_local.cost_val + lam * x_local.penalty_val < x_shaked.cost_val + lam * x_shaked.penalty_val:
                 x_shaked = x_local
                 j = 0
@@ -195,6 +196,8 @@ def vns(sol: Sol, lam: float):
                 best_sol = x_local
                 find_local_best = True
                 best_sol_changed = True
+                print("  It is a better solution:")
+                print("    Cost:", x_local.cost_val, "Penalty:", x_local.penalty_val)
                 break
         if find_local_best:
             i = 0
@@ -208,11 +211,14 @@ def main():
     sol.initialization('method1')
     best_sol = sol
     lam = lam0  # 惩罚因子
+    continue_infeasible_times = 0
+    continue_feasible_times = 0
     for iternum in range(15000):
         # 对best_sol进行vns搜索
+        print("iter", iternum + 1, ":")
         searched_sol, sol_changed = vns(best_sol, lam)
-        continue_infeasible_times = 0
-        continue_feasible_times = 0
+        print("  vns of iter", iternum + 1, "ended.")
+
         # 对S进行可行性检验，更新惩罚系数
         feasible = searched_sol.feasible()
         if not feasible:
@@ -220,6 +226,7 @@ def main():
             continue_infeasible_times += 1
             continue_feasible_times = 0
             if continue_infeasible_times >= eta_penalty:
+                print("Too much infeasible sol, increase penalty lambda.")
                 lam *= 10
                 continue_infeasible_times = 0
         else:
@@ -227,6 +234,7 @@ def main():
             continue_infeasible_times = 0
             continue_feasible_times += 1
             if continue_feasible_times > eta_penalty:
+                print("Too much feasible sol, decrease penalty lambda.")
                 lam /= 10
                 continue_feasible_times = 0
         # 如果可行而且搜索到的解比原先解要好，更新解

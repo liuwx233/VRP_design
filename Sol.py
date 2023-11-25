@@ -320,8 +320,8 @@ class Sol:
             
             self.routes = [element for element in self.routes if element != [0, 0]]
 
-            self.cost_val = self.cost()
-            self.penalty_val = self.penalty()
+        self.cost_val = self.cost()
+        self.penalty_val = self.penalty()
 
     def copy(self):
         """
@@ -332,6 +332,8 @@ class Sol:
         ret_sol.routes = copy.deepcopy(self.routes)
         ret_sol.departure_times = copy.deepcopy(self.departure_times)
         ret_sol.vehicle_types = copy.deepcopy(self.vehicle_types)
+        ret_sol.cost_val = self.cost_val
+        ret_sol.penalty_val = self.penalty_val
         return ret_sol
 
     def cost(self):
@@ -655,6 +657,7 @@ class Sol:
                         r1 = r1_
                         r1_ind = r1_ind_
                         break
+
                 node1_index = r1.index(node1)
                 # 找一个node1的关联度高的点
                 node2 = random.sample(highest_relation_dict[node1], 1)[0]
@@ -728,7 +731,14 @@ class Sol:
                     penalty_route(neighbor_sol.routes[r2_ind],  neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
 
                 del neighbor_sol.routes[r1_ind][node1_index]
-                neighbor_sol.routes[r2_ind].insert(node1, node2_index)
+                neighbor_sol.routes[r2_ind].insert(node2_index, node1)
+
+                # 删除r1上的点之后，r1可能出现[0, 0]的情况，此时要删除重复项
+                for node1_index, node1 in enumerate(neighbor_sol.routes[r1_ind]):
+                    if node1_index == len(neighbor_sol.routes[r1_ind]) - 1:
+                        break
+                    if node1 == neighbor_sol.routes[r1_ind][node1_index + 1]:
+                        del neighbor_sol.routes[r1_ind][node1_index]
 
                 new_cost = cost_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind]) + \
                     cost_route(neighbor_sol.routes[r2_ind], neighbor_sol.vehicle_types[r2_ind], neighbor_sol.departure_times[r2_ind])
@@ -804,7 +814,7 @@ class Sol:
                     r1 = neighbor_sol.routes[r1_ind]
                     select_node_pos = random.sample(list(range(2, len(r1))), 1)[0]
                     select_recharge = random.sample(index_recharge, 1)[0]
-                    neighbor_sol.routes[r1_ind].insert(select_recharge, select_node_pos)
+                    neighbor_sol.routes[r1_ind].insert(select_node_pos, select_recharge)
                 else:
                     # 随机删除一个充电站
                     deleted = False
@@ -820,6 +830,7 @@ class Sol:
                             continue
                         select_del_pos = random.sample(recharge_pos, 1)[0]
                         del neighbor_sol.routes[r1_ind][select_del_pos]
+                        deleted = True
 
                 new_cost = cost_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind])
                 new_penalty = penalty_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind])
