@@ -2,6 +2,55 @@ from input import *
 import random
 
 
+def vol_constraint_route(r, vehicle_type=1, depart_time=0):
+    volume = df_vehicle.loc[vehicle_type, 'max_volume']
+    res_volume = volume
+    for i in range(len(r)):
+        if r[i] == 0:
+            res_volume = volume
+        elif 1 <= r[i] <= 1000:
+            res_volume = res_volume - df_nodes.loc[r[i], 'pack_total_volume']
+            if res_volume < 0:
+                return False
+    return True
+
+
+def weight_constraint_route(r, vehicle_type=1, depart_time=0):
+    weight = df_vehicle.loc[vehicle_type, 'max_weight']
+    res_weight = weight
+    for i in range(len(r)):
+        if r[i] == 0:
+            res_weight = weight
+        elif 1 <= r[i] <= 1000:
+            res_weight = res_weight - df_nodes.loc[r[i], 'pack_total_weight']
+            if res_weight < 0:
+                return False
+
+
+def time_constraint_route(r, vehicle_type=1, depart_time=0):
+    path_time = depart_time
+
+    for i in range(len(r)-1):
+        from_point = r[i]
+        to_point = r[i+1]
+        path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
+        if to_point != 0:
+            if path_time > df_nodes.loc[to_point, 'last_receive_tm'] or path_time > time_horizon:
+                return False
+            # 付出等待时间
+            path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
+        else:
+            if path_time > time_horizon:
+                return False
+        if to_point == 0:
+            # depot服务时间
+            path_time += 60
+        else:
+            # 充电站或客户节点服务时间
+            path_time += service_time
+    return True
+
+
 def penalty_route(r, vehicle_type=1, depart_time=0):
     """
     包含两部分的内容：违反时间约束的惩罚成本（单位：分钟）+违反电量约束的惩罚成本（单位：百米）

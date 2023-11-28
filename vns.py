@@ -173,7 +173,7 @@ def vns(sol: Sol, lam: float):
     :param sol:
     :return: sol变邻域搜索之后的解, best_sol_changed: 搜索结果和原先解不同
     """
-    neighbor_structures = ['2opt*', 'relocate', 'swap', 'insert_remove']
+    neighbor_structures = ['2opt*', 'relocate', 'swap']
     neighbor_structures_local = ['2opt*', 'relocate', 'swap']
     i = 0
     best_sol = sol
