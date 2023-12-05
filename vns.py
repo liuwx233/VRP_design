@@ -56,7 +56,6 @@ from Sol import *
 def find_nearest_recharge_station(node_i, node_j):
     """
     Find the recharge station with the minimum sum of distances to two customer nodes.
-
     :param df_distance: DataFrame containing distances between nodes.
     :param customer_nodes: Tuple of two customer node indices.
     :param recharge_stations: List of indices of recharge stations.
@@ -77,6 +76,110 @@ def find_nearest_recharge_station(node_i, node_j):
 
     return nearest_station
 
+def expand(r, vehicle_type, i, extension=1, R=None, W=None, V=None, T=None, T_w=None, d=None, f=None):
+    """
+    判断i节点处是否可以进行类型为extension的拓展
+    :param r: 路径
+    :param i: 节点
+    :param extension: 拓展类型
+    :return: 是否可以拓展、拓展一步增加的成本、更新后的R/W/V/T/T_w/d/f
+    """
+    if (i+2) < len(r):
+
+        if extension == 1:
+            T[i+1] = max(T[i] + df_distance.loc[(r[i], r[i+1]), "spend_tm"], df_nodes.loc[r[i+1], "first_receive_tm"]) + service_time
+            T_w[i+1] = T_w[i] + max(0, df_nodes.loc[r[i+1], "first_receive_tm"] - T[i] - df_distance.loc[(r[i], r[i+1]), "spend_tm"])
+            W[i+1] = W[i] + df_nodes.loc[r[i+1], "pack_total_weight"]
+            V[i+1] = V[i] + df_nodes.loc[r[i+1], "pack_total_volume"]
+            R[i+1] = R[i] + df_distance.loc[(r[i], r[i+1]), "distance"]
+            d[i+1] = d[i] + df_distance.loc[(r[i], r[i+1]), "distance"]
+            time_wait = max(0, df_nodes.loc[r[i+1], "first_receive_tm"] - T[i] - df_distance.loc[(r[i], r[i+1]), "spend_tm"])
+            f[i+1] = f[i] + waiting_cost * time_wait + df_distance.loc[(r[i], r[i+1]), 'distance'] * df_vehicle.loc[vehicle_type, 'unit_trans_cost'] / 1000
+            delta_cost = f[i+1] - f[i]
+            premise1 = (T[i+1] >= service_time) and (T[i+1] <= service_time + df_nodes.loc[r[i+1], "last_receive_tm"]) and (T[i+1] <= time_horizon)
+            premise2 = (W[i+1] <= df_vehicle.loc[vehicle_type, "max_weight"])
+            premise3 = (V[i+1] <= df_vehicle.loc[vehicle_type, "max_volume"])
+            premise4 = R[i+1] <= df_vehicle.loc[vehicle_type, "driving_range"]
+            premise = premise1 and premise2 and premise3 and premise4
+            if not premise:
+                return {'logic': False, 'delta_cost': delta_cost, 'extension': extension, 'charge': None, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
+            else:
+                return {'logic': True, 'delta_cost': delta_cost, 'extension': extension, 'charge': None, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
+
+        if extension == 2:
+            k = find_nearest_recharge_station(r[i], r[i+1])
+            print(f"stattion: {k}")
+            T[i+1] = max(T[i] + df_distance.loc[(r[i], k), "spend_tm"] + service_time + df_distance.loc[(k, r[i+1]), "spend_tm"], df_nodes.loc[r[i+1], "first_receive_tm"]) + service_time
+            T_w[i+1] = T_w[i] + max(0, df_nodes.loc[r[i+1], "first_receive_tm"] - T[i] - df_distance.loc[(r[i], k), "spend_tm"] - service_time - df_distance.loc[(k, r[i+1]), "spend_tm"])
+            W[i+1] = W[i] + df_nodes.loc[r[i+1], "pack_total_weight"]
+            V[i+1] = V[i] + df_nodes.loc[r[i+1], "pack_total_volume"]
+            R[i+1] = df_distance.loc[(k, r[i+1]), "distance"]
+            d[i+1] = d[i] + df_distance.loc[(r[i], k), "distance"] + df_distance.loc[(k, r[i+1]), "distance"]
+            time_wait = max(0, df_nodes.loc[r[i+1], "first_receive_tm"] - T[i] - df_distance.loc[(r[i], k), "spend_tm"] - service_time - df_distance.loc[(k, r[i+1]), "spend_tm"])
+            f[i+1] = f[i] + waiting_cost * time_wait + (df_distance.loc[(r[i], k), 'distance'] + df_distance.loc[(k, r[i+1]), 'distance']) * df_vehicle.loc[vehicle_type, 'unit_trans_cost'] / 1000 + charging_cost * service_time
+            delta_cost = f[i + 1] - f[i]
+            premise1 = (T[i+1] >= service_time) and (T[i+1] <= service_time + df_nodes.loc[r[i+1], "last_receive_tm"]) and (T[i+1] <= time_horizon)
+            premise2 = (W[i+1] <= df_vehicle.loc[vehicle_type, "max_weight"])
+            premise3 = (V[i+1] <= df_vehicle.loc[vehicle_type, "max_volume"])
+            premise4 = R[i+1] <= df_vehicle.loc[vehicle_type, "driving_range"]
+            premise5 = R[i] + df_distance.loc[(r[i], k), "distance"] <= df_vehicle.loc[vehicle_type, "driving_range"]  # 还需要可以走到最左充电站
+            premise = premise1 and premise2 and premise3 and premise4 and premise5
+            if not premise:
+                return {'logic': False, 'delta_cost': delta_cost, 'extension': extension, 'charge': k, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
+            else:
+                return {'logic': True, 'delta_cost': delta_cost, 'extension': extension, 'charge': k, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
+
+        if extension == 3:
+            T[i+1] = max(T[i] + df_distance.loc[(r[i], 0), "spend_tm"] + service_time_depot + df_distance.loc[(0, r[i+1]), "spend_tm"], df_nodes.loc[r[i+1], "first_receive_tm"]) + service_time
+            T_w[i+1] = T_w[i] + max(0, df_nodes.loc[r[i+1], "first_receive_tm"] - T[i] - df_distance.loc[(r[i], 0), "spend_tm"] - service_time_depot - df_distance.loc[(0, r[i+1]), "spend_tm"])
+            W[i+1] = df_nodes.loc[r[i+1], "pack_total_weight"]
+            V[i+1] = df_nodes.loc[r[i+1], "pack_total_volume"]
+            R[i+1] = df_distance.loc[(0, r[i+1]), "distance"]
+            d[i+1] = d[i] + df_distance.loc[(r[i], 0), "distance"] + df_distance.loc[(0, r[i + 1]), "distance"]
+            time_wait = max(0, df_nodes.loc[r[i+1], "first_receive_tm"] - T[i] - df_distance.loc[(r[i], 0), "spend_tm"] - service_time_depot - df_distance.loc[(0, r[i+1]), "spend_tm"]) + service_time_depot
+            f[i+1] = f[i] + waiting_cost * time_wait + (df_distance.loc[(r[i], 0), 'distance'] + df_distance.loc[(0, r[i+1]), 'distance']) * df_vehicle.loc[vehicle_type, 'unit_trans_cost'] / 1000
+            delta_cost = f[i + 1] - f[i]
+            premise1 = (T[i+1] >= service_time) and (T[i+1] <= service_time + df_nodes.loc[r[i+1], "last_receive_tm"]) and (T[i+1] <= time_horizon)
+            premise2 = (W[i+1] <= df_vehicle.loc[vehicle_type, "max_weight"])
+            premise3 = (V[i+1] <= df_vehicle.loc[vehicle_type, "max_volume"])
+            premise4 = R[i+1] <= df_vehicle.loc[vehicle_type, "driving_range"]
+            premise5 = R[i] + df_distance.loc[(r[i], 0), "distance"] <= df_vehicle.loc[vehicle_type, "driving_range"]  # 可以到达depot
+            premise = premise1 and premise2 and premise3 and premise4 and premise5
+            if not premise:
+                return {'logic': False, 'delta_cost': delta_cost, 'extension': extension, 'charge': None, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
+            else:
+                return {'logic': True, 'delta_cost': delta_cost, 'extension': extension, 'charge': None, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
+
+    elif (i+2) == len(r):  # 有可能回不去需要找最左充电站，但是只考虑直接回去情况
+        delta_cost = 0
+        premise1 = T[i] + df_distance.loc[(r[i], 0), "spend_tm"] <= time_horizon
+        premise2 = R[i] + df_distance.loc[(r[i], 0), "distance"] <= df_vehicle.loc[vehicle_type, "driving_range"]
+        premise = premise1 and premise2
+        if not premise:
+            return {'logic': False, 'delta_cost': delta_cost, 'extension': extension, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
+        else:
+            return {'logic': True, 'delta_cost': delta_cost, 'extension': extension, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
+
+# expand(test_route, vehicle_types[10], 1, , R=None, W=None, V=None, T=None, T_w=None, d=None, f=None)
+
+
+def time_checker(routes, departure_times):
+    time_table = routes[:]
+    for i in range(len(time_table)):
+        time_table[i][0] = departure_times[i]
+        over_time = False
+        
+        if len(route) <= 2:
+            continue
+        
+        for j in range(len(time_table[i])):
+            time_table[i][j+1] = time_table[i][j] + df_distance.loc[(r[i][j], r[i][j+1]), 'spend_tm']
+            if time_table[i][j+1] > df_nodes.loc[r[i][j+1], 'last_receive_tm']:
+                over_time = True
+        if over_time:
+            print("Warning!!!")
+
+
 
 def labeling(r, vehicle_type, departure_time):
     """
@@ -87,66 +190,106 @@ def labeling(r, vehicle_type, departure_time):
     :return: r_ret为返回的路径（决定了充电站、返回配送中心）, vehicle_type_ret为决定的配送车型
     """
     
-    R = []
-    W = []
-    V = []
-    T = []
-    T_w = []
-    d = []
-    f = []
+    # time_checker(r, departure_times)
+            
+    R = [None] * len(r)  # 车辆离开节点时的里程状态
+    W = [None] * len(r)  # 车辆离开节点时的载重状态，至多还可以装载多少重量
+    V = [None] * len(r)  # 车辆离开节点时的容积状态，至多还可以装载多少容积
+    T = [None] * len(r)  # 车辆离开节点时的时间
+    T_w = [None] * len(r)  # 车辆离开节点时的累积等待时间
+    d = [None] * len(r)  # 车辆离开节点时的累积行驶里程
+    f = [None] * len(r)  # 车辆离开节点时的累积成本
+    expand_list = []  # 内部子list，记录拓展节点和拓展类型
+    charge = 0
     R[0] = 0
     W[0] = 0
     V[0] = 0
     T[0] = departure_time
     T_w[0] = 0
     d[0] = 0
-    f[0] = 0
-    for i in range(len(r)):
-        if i != 0:
-            premise1 = (T[i]>=service_time) and (T[i]<=service_time+df_nodes.loc[r[i], "last_receive_tm"])
-            premise2 = (W[i]<=df_vehicle.loc[vehicle_type, "max_weight"])
-            premise3 = (V[i]<=df_vehicle.loc[vehicle_type, "max_volume"])
-            premise4 = R[i] <= df_vehicle.loc[vehicle_type, "driving_range"]
-            premise = premise1 and premise2 and premise3 and premise4
-            if not premise:
-                continue
-            
-            extension = 1
-            #### 拓展1
-            if extension == 1:
-                T[i+1] = max(T[i]+df_distance.loc[(r[i], r[i+1]), "spend_tm"], df_nodes.loc[r[i+1], "first_receive_tm"])+service_time
-                T_w[i+1] = T_w[i] + max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], r[i+1]), "spend_tm"])
-                W[i+1] = W[i] + df_nodes.loc[r[i+1], "pack_total_weight"]
-                V[i+1] = V[i] + df_nodes.loc[r[i+1], "pack_total_volume"]   
-                R[i+1] = R[i] + df_distance.loc[(r[i], r[i+1]), "distance"]
-                d[i+1] = d[i] + df_distance.loc[(r[i], r[i+1]), "distance"]
-                time_wait = max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], r[i+1]), "spend_tm"])
-                f[i+1] = f[i]+waiting_cost*time_wait+df_distance.loc[(r[i], r[i+1]), 'distance'] * df_vehicle.loc[vehicle_type, 'unit_trans_cost'] / 1000
+    f[0] = 0  # 初始化
 
-            if extension == 2:
-                k = find_nearest_recharge_station(r[i], r[i+1])
-                T[i+1] = max(T[i]+df_distance.loc[(r[i], k), "spend_tm"]+service_time+df_distance.loc[(k, r[i+1]), "spend_tm"], df_nodes.loc[r[i+1], "first_receive_tm"]) + service_time
-                T_w[i+1] = T_w[i] + max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], k), "spend_tm"]-service_time-df_nodes.loc[(k, r[i+1]), "spend_tm"])
-                W[i+1] = W[i] + df_nodes.loc[r[i+1], "pack_total_weight"]
-                V[i+1] = V[i] + df_nodes.loc[r[i+1], "pack_total_volume"]
-                R[i+1] = df_distance.loc[(k, r[i+1]), "distance"]
-                d[i+1] = d[i] + df_distance.loc[(r[i], k), "distance"] + df_distance.loc[(k, r[i+1]), "distance"]
-                time_wait = max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], k), "spend_tm"]-service_time-df_nodes.loc[(k, r[i+1]), "spend_tm"])
-                f[i+1] = f[i] + waiting_cost*time_wait + (df_distance.loc[(r[i], k), 'distance']+df_distance.loc[(k, r[i+1]), 'distance']) * df_vehicle.loc[vehicle_type, 'unit_trans_cost']/1000 + charging_cost*service_time
+    for i in range(len(r)-2):  # 最后一个节点不需要拓展
 
-            if extension == 3:
-                T[i+1] = max(T[i]+df_distance.loc[(r[i], 0), "spend_tm"]+service_time_depot, df_nodes.loc[r[i+1], "first_receive_tm"])+service_time
-                T_w[i+1] = T_w[i] + max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], 0), "spend_tm"]-service_time_depot-df_nodes.loc[(0, r[i+1]), "spend_tm"])
-                W[i+1] = df_nodes.loc[r[i+1], "pack_total_weight"]
-                V[i+1] = df_nodes.loc[r[i+1], "pack_total_volume"]
-                R[i+1] = df_distance.loc[(0, r[i+1]), "distance"]
-                d[i+1] = d[i] + df_distance.loc[(r[i], 0), "distance"] + df_distance.loc[(0, r[i+1]), "distance"]
-                time_wait = max(0, df_nodes.loc[r[i+1], "first_receive_tm"]-T[i]-df_nodes.loc[(r[i], 0), "spend_tm"]-service_time_depot-df_nodes.loc[(0, r[i+1]), "spend_tm"]) + service_time_depot
-                f[i+1] = f[i] + waiting_cost*time_wait + (df_distance.loc[(r[i], 0), 'distance']+df_distance.loc[(0, r[i+1]), 'distance']) * df_vehicle.loc[vehicle_type, 'unit_trans_cost'] / 1000
+        print(i)
+        dic_list = []
+        expand_11 = {'logic': False}
+        expand_12 = {'logic': False}
+        expand_13 = {'logic': False}
+
+        expand_1 = expand(r, vehicle_type, i, 1, R, W, V, T, T_w, d, f)
+        if expand_1['logic']:
+            expand_11 = expand(r, vehicle_type, i+1, 1, expand_1['R'], expand_1['W'], expand_1['V'], expand_1['T'], expand_1['T_w'], expand_1['d'], expand_1['f'])
+            expand_12 = expand(r, vehicle_type, i+1, 2, expand_1['R'], expand_1['W'], expand_1['V'], expand_1['T'], expand_1['T_w'], expand_1['d'], expand_1['f'])
+            expand_13 = expand(r, vehicle_type, i+1, 3, expand_1['R'], expand_1['W'], expand_1['V'], expand_1['T'], expand_1['T_w'], expand_1['d'], expand_1['f'])
+        dic_list.append(expand_1)
+
+        expand_2 = expand(r, vehicle_type, i, 2, R, W, V, T, T_w, d, f)
+        dic_list.append(expand_2)
+
+        if r[i]!=0:
+            expand_3 = expand(r, vehicle_type, i, 3, R, W, V, T, T_w, d, f)
+            dic_list.append(expand_3)
+
+        if not (expand_12['logic'] and expand_13['logic']):
+
+            feasible_dicts = [d for d in dic_list[-2:] if d['logic']]
+
+            if len(feasible_dicts) == 0:
+                print("infeasible")
+                #return False
+
+            #min_cost_dict = min(feasible_dicts, key=lambda x: x['delta_cost'])
+            extension_type = min_cost_dict['extension']
+            charge = min_cost_dict['charge']
+            expand_list.append([i, extension_type, charge])
+
+            R = min_cost_dict['R']
+            W = min_cost_dict['W']
+            V = min_cost_dict['V']
+            T = min_cost_dict['T']
+            T_w = min_cost_dict['T_w']
+            d = min_cost_dict['d']
+            f = min_cost_dict['f']
+
+        else:
+
+            feasible_dicts = [d for d in dic_list if d['logic']]
+
+            if not feasible_dicts:
+                df_nodes.loc[r[j+1], 'last_receive_tm']
+                #return False
+
+            #min_cost_dict = min(feasible_dicts, key=lambda x: x['delta_cost'])
+            extension_type = min_cost_dict['extension']
+            charge = min_cost_dict['charge']
+            expand_list.append([i, extension_type, charge])
+
+            R = min_cost_dict['R']
+            W = min_cost_dict['W']
+            V = min_cost_dict['V']
+            T = min_cost_dict['T']
+            T_w = min_cost_dict['T_w']
+            d = min_cost_dict['d']
+            f = min_cost_dict['f']
+
+    expand_0 = expand(r, vehicle_type, len(r)-2, 1, R, W, V, T, T_w, d, f)
+    if not expand_0['logic']:
+        return False
+
+    index = 0  # 记录已经插入了几个节点，用于确定插入具体位置
+    for expand_operation in expand_list:
+        if expand_operation[1] == 2:
+            r.insert(expand_operation[0]+1+index, charge)
+            index += 1
+        elif expand_operation[1] == 3:
+            r.insert(expand_operation[0]+1+index, 0)
+            index += 1
 
     r_ret = r
     vehicle_type_ret = vehicle_type
-    return r_ret, vehicle_type_ret
+    departure_time_ret = departure_time
+    return r_ret, vehicle_type_ret, departure_time_ret
 
 
 def local_search(sol: Sol, neighbor_structure, lam) -> Sol:
