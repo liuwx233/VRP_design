@@ -1,5 +1,6 @@
 from input import *
 import random
+import pickle
 
 
 def vol_constraint_route(r, vehicle_type=1, depart_time=0):
@@ -179,7 +180,7 @@ class Sol:
         self.cost_val = 0
         self.penalty_val = 0
 
-    def initialization(self, method):
+    def initialization(self, method, vol_weight_feasible=False):
         """
         TODO: 初始化一个解，解含有的元素有:
         1. 路的集合。一条路由许多个节点id按顺序构成。每条路必须以depot为起点，循环算作一条路。例如从depot->9->6->depot->1->depot这段路的列表为[0, 9, 6, 0, 1, 0]
@@ -326,7 +327,7 @@ class Sol:
 
             while len(sorted_ids) > 0:
                 # 从列表的前Z个商户中随机选择一个商户进行插入
-                Z = 10
+                Z = max(int(len(index_customer) * 0.1), 2)
                 if Z > len(sorted_ids):
                     Z = len(sorted_ids)
                 chosen_customer = random.choice(sorted_ids[:Z])  # 随机选中其中一个
@@ -335,15 +336,16 @@ class Sol:
                 best_increase = float('inf')
 
                 for i, route in enumerate(self.routes):  # 遍历每一辆车的路径
-                    route_weight = df_nodes.loc[chosen_customer, 'pack_total_weight']
-                    route_volume = df_nodes.loc[chosen_customer, 'pack_total_volume']
-                    for j in route:
-                        if j==0: continue
-                        route_weight += df_nodes.loc[j, 'pack_total_weight']
-                        route_volume += df_nodes.loc[j, 'pack_total_volume']
-                    
-                    if (route_weight > df_vehicle.loc[self.vehicle_types[i], 'max_weight']) or (route_volume > df_vehicle.loc[self.vehicle_types[i], 'max_volume']):
-                        continue
+                    if vol_weight_feasible:
+                        route_weight = df_nodes.loc[chosen_customer, 'pack_total_weight']
+                        route_volume = df_nodes.loc[chosen_customer, 'pack_total_volume']
+                        for j in route:
+                            if j==0: continue
+                            route_weight += df_nodes.loc[j, 'pack_total_weight']
+                            route_volume += df_nodes.loc[j, 'pack_total_volume']
+
+                        if (route_weight > df_vehicle.loc[self.vehicle_types[i], 'max_weight']) or (route_volume > df_vehicle.loc[self.vehicle_types[i], 'max_volume']):
+                            continue
                     # 计算原始的目标函数值
                     # 因为我们在某一次特定的循环中只会改变某一辆车的路径，所以只需要计算这辆车带来的变化即可
                     if len(route) <= 2:
@@ -966,3 +968,15 @@ class Sol:
                 self.departure_times[i] += min(max(waiting_time_list[i]), min(delay_time_list[i]))
 
         return self.departure_times
+
+
+if __name__ == '__main__':
+    # 初始化并存储数据
+    sol = Sol()
+    method = 'method2'
+    vol_feasible = False
+    sol.initialization(method, vol_feasible)
+    fBin = open("init_sol.bin", 'wb')
+    pickle.dump(sol, fBin)
+    fBin.close()
+

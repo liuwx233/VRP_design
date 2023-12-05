@@ -1,6 +1,8 @@
 from Sol import *
 
 
+# TODO: 调优策略: 1. 电量和路程惩罚项调优、2. 局部搜索算法调整 3. 调整labeling里面sol.cost_val, sol.penalty_val
+
 # def cost_route(r, vehicle_type=1, depart_time=0, penalty=False, penalty_lam=0):
 #     """
 #     计算单独一条路的cost。包含
@@ -163,25 +165,23 @@ def expand(r, vehicle_type, i, extension=1, R=None, W=None, V=None, T=None, T_w=
 # expand(test_route, vehicle_types[10], 1, , R=None, W=None, V=None, T=None, T_w=None, d=None, f=None)
 
 
-def time_checker(routes, departure_times):
-    time_table = routes[:]
-    for i in range(len(time_table)):
-        time_table[i][0] = departure_times[i]
-        over_time = False
-        
-        if len(route) <= 2:
-            continue
-        
-        for j in range(len(time_table[i])):
-            time_table[i][j+1] = time_table[i][j] + df_distance.loc[(r[i][j], r[i][j+1]), 'spend_tm']
-            if time_table[i][j+1] > df_nodes.loc[r[i][j+1], 'last_receive_tm']:
-                over_time = True
-        if over_time:
-            print("Warning!!!")
+# def time_checker(routes, departure_times):
+#     time_table = routes[:]
+#     for i in range(len(time_table)):
+#         time_table[i][0] = departure_times[i]
+#         over_time = False
+#
+#         if len(route) <= 2:
+#             continue
+#
+#         for j in range(len(time_table[i])):
+#             time_table[i][j+1] = time_table[i][j] + df_distance.loc[(r[i][j], r[i][j+1]), 'spend_tm']
+#             if time_table[i][j+1] > df_nodes.loc[r[i][j+1], 'last_receive_tm']:
+#                 over_time = True
+#         if over_time:
+#             print("Warning!!!")
 
-r = sol.routes[1][:]
-vehicle_type = sol.vehicle_types[1]
-departure_time = sol.departure_times[1]
+
 
 def labeling(origin_r, vehicle_type, departure_time):
     """
@@ -191,14 +191,14 @@ def labeling(origin_r, vehicle_type, departure_time):
     :param departure_time: r原本的出发时间
     :return: r_ret为返回的路径（决定了充电站、返回配送中心）, vehicle_type_ret为决定的配送车型
     """
-    
+
     # time_checker(r, departure_times)
     ## 移除所有的充电站
     r = origin_r[:]
     r = [x for x in r if x <= 1000 and x != 0]
-            
+
     r = [0] + r + [0]  # 在首尾添加0
-        
+
     R = [None] * len(r)  # 车辆离开节点时的里程状态
     W = [None] * len(r)  # 车辆离开节点时的载重状态，至多还可以装载多少重量
     V = [None] * len(r)  # 车辆离开节点时的容积状态，至多还可以装载多少容积
@@ -246,7 +246,7 @@ def labeling(origin_r, vehicle_type, departure_time):
 
             if len(feasible_dicts) == 0:
                 print("infeasible")
-                return origin_r, vehicle_type_ret, departure_time_ret
+                return origin_r, vehicle_type, departure_time
 
             min_cost_dict = min(feasible_dicts, key=lambda x: x['delta_cost'])
             extension_type = min_cost_dict['extension']
@@ -266,7 +266,7 @@ def labeling(origin_r, vehicle_type, departure_time):
 
             if not feasible_dicts:
                 print("infeasible")
-                return origin_r, vehicle_type_ret, departure_time_ret
+                return origin_r, vehicle_type, departure_time
 
             min_cost_dict = min(feasible_dicts, key=lambda x: x['delta_cost'])
             extension_type = min_cost_dict['extension']
@@ -283,7 +283,7 @@ def labeling(origin_r, vehicle_type, departure_time):
 
     expand_0 = expand(r, vehicle_type, len(r)-2, 1, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:])
     if not expand_0['logic']:
-        return origin_r, vehicle_type_ret, departure_time_ret
+        return origin_r, vehicle_type, departure_time
 
     index = 0  # 记录已经插入了几个节点，用于确定插入具体位置
     for expand_operation in expand_list:
@@ -358,8 +358,14 @@ def vns(sol: Sol, lam: float):
 
 
 def main():
-    sol = Sol()
-    sol.initialization('method1')
+    # method1读取方式
+    # sol = Sol()
+    # sol.initialization('method1')
+    # method2读取方式
+    ff = open("init_sol.bin", "rb")
+    sol = pickle.load(ff)
+    fBin.close()
+
     best_sol = sol
     lam = lam0  # 惩罚因子
     continue_infeasible_times = 0
@@ -392,13 +398,11 @@ def main():
         if feasible and sol_changed:
             best_sol = searched_sol
         # 如果迭代次数到达一定程度，则采用标签优化算法
-        if iternum > 10000:
-            pass
+        if iternum >= 0:
+            for r_ind, r in enumerate(best_sol.routes):
+                best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind] = labeling(r, vehicle_type=best_sol.vehicle_types[r_ind], departure_time=best_sol.departure_times[r_ind])
     return best_sol
 
 
 if __name__ == '__main__':
-    # main()
-    sol=Sol()
-    sol.initialization("method1")
-    labeling(sol.routes[1][:], sol.vehicle_types[1], sol.departure_times[1])
+    main()
