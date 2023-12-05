@@ -364,7 +364,7 @@ def main():
     # method2读取方式
     ff = open("init_sol.bin", "rb")
     sol = pickle.load(ff)
-    fBin.close()
+    ff.close()
 
     best_sol = sol
     lam = lam0  # 惩罚因子
@@ -401,8 +401,13 @@ def main():
         if iternum >= 0:
             for r_ind, r in enumerate(best_sol.routes):
                 best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind] = labeling(r, vehicle_type=best_sol.vehicle_types[r_ind], departure_time=best_sol.departure_times[r_ind])
+
     return best_sol
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    ff = open("init_sol.bin", "rb")
+    sol = pickle.load(ff)
+    ff.close()
+    sol.penalty()

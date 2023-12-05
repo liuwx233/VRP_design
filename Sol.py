@@ -70,7 +70,7 @@ def penalty_route(r, vehicle_type=1, depart_time=0):
 
         path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
         if to_point != 0:
-            penalty_time += max((path_time - df_nodes.loc[to_point, 'last_receive_tm']), 0)  # 晚到惩罚，单位：分钟
+            penalty_time += max((path_time - df_nodes.loc[to_point, 'last_receive_tm']), 0) * Penalty_TW  # 晚到惩罚，单位：分钟
         penalty_time += max((path_time - time_horizon), 0)  # 所有点超过time_horizon加一个额外的惩罚
         if to_point != 0:  # 更新时间参数
             path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
@@ -81,7 +81,7 @@ def penalty_route(r, vehicle_type=1, depart_time=0):
 
         res_charge = res_charge - df_distance.loc[(from_point, to_point), 'distance']
         if res_charge < 0:
-            penalty_elec += -res_charge / 100  # 电量惩罚，单位：百米
+            penalty_elec += -res_charge * Penalty_range  # 电量惩罚，单位：百米
         if to_point > 1000:  # 更新电量参数
             res_charge = charge
         if to_point == 0:  # 回depot也可以充满的
@@ -468,7 +468,7 @@ class Sol:
 
                 path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
                 if to_point >= 1 and to_point <= 1000:
-                    time_penalty += max((path_time - df_nodes.loc[to_point, 'last_receive_tm']), 0)  # 晚到惩罚，单位：分钟
+                    time_penalty += max((path_time - df_nodes.loc[to_point, 'last_receive_tm']), 0) * Penalty_TW  # 晚到惩罚，单位：分钟
                 time_penalty += max((path_time - time_horizon), 0)  # 所有点超过time_horizon加一个额外的惩罚
                 if to_point != 0:  # 更新时间参数
                     path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
@@ -479,7 +479,7 @@ class Sol:
 
                 res_charge = res_charge - df_distance.loc[(from_point, to_point), 'distance']
                 if res_charge < 0:
-                    charge_penalty += -res_charge/100  # 电量惩罚，单位：百米
+                    charge_penalty += -res_charge * Penalty_range  # 电量惩罚，单位：百米
                 if to_point > 1000:  # 更新电量参数
                     res_charge = charge
                 if to_point == 0:  # 回depot也可以充满的

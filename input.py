@@ -18,7 +18,7 @@ index_depot = [0]  # depot id集合
 index_recharge = []  # 充电站id集合
 index_customer = []  # 顾客id集合
 index_vehicle_type = [1, 2]  # 车辆类型id集合，一共两个元素
-maximum_vehicle = {1: 40, 2: 40}  # key: 车辆类型id, value: 事先规定的车辆数量上限
+maximum_vehicle = {1: 80, 2: 80}  # key: 车辆类型id, value: 事先规定的车辆数量上限
 df_vehicle = pd.DataFrame()  # 含有车辆信息, 索引位index_vehicle_type中元素
 df_nodes = pd.DataFrame()  # 含有客户节点、充电节点的所有信息, 索引为index_customer中元素
 df_distance = pd.DataFrame()  # 含有距离信息, 索引为(i,j), i, j分别为index_nodes中的元素。且i≠j
@@ -31,10 +31,12 @@ service_time_depot = 60
 eta_penalty = 50
 lam_min = 0.01
 lam_max = 10000
-lam0 = 10
+lam0 = 100
 gamma_wt = 0.2  # 等待时间惩罚系数，用于计算商户关联度
 gamma_tw = 1.0  # 违反时间窗的惩罚系数
 highest_relation_dict = {}  # 用于邻域拓展，记载每个客户节点的关联客户节点
+Penalty_TW = 1
+Penalty_range = 1 / 50
 
 # x_o = [[[[]]]]  # 四层依次是第k类车、第l辆、访问路径从i到O再到j，为方便起见x_o定义成与x同dim的
 # distance_matrix = [[]]  # 从i到j的距离矩阵,
@@ -58,7 +60,7 @@ def input_data():
 
 
 input_data()
-Gamma_N = int(len(index_customer) * 0.04)
+Gamma_N = int(len(index_customer) * 0.4)
 
 
 def relation(customer1, customer2):
