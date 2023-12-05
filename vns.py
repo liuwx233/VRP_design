@@ -108,7 +108,7 @@ def expand(r, vehicle_type, i, extension=1, R=None, W=None, V=None, T=None, T_w=
 
         if extension == 2:
             k = find_nearest_recharge_station(r[i], r[i+1])
-            print(f"stattion: {k}")
+            print(f"station: {k}")
             T[i+1] = max(T[i] + df_distance.loc[(r[i], k), "spend_tm"] + service_time + df_distance.loc[(k, r[i+1]), "spend_tm"], df_nodes.loc[r[i+1], "first_receive_tm"]) + service_time
             T_w[i+1] = T_w[i] + max(0, df_nodes.loc[r[i+1], "first_receive_tm"] - T[i] - df_distance.loc[(r[i], k), "spend_tm"] - service_time - df_distance.loc[(k, r[i+1]), "spend_tm"])
             W[i+1] = W[i] + df_nodes.loc[r[i+1], "pack_total_weight"]
@@ -179,9 +179,11 @@ def time_checker(routes, departure_times):
         if over_time:
             print("Warning!!!")
 
+r = sol.routes[1][:]
+vehicle_type = sol.vehicle_types[1]
+departure_time = sol.departure_times[1]
 
-
-def labeling(r, vehicle_type, departure_time):
+def labeling(origin_r, vehicle_type, departure_time):
     """
     TODO: 标签算法（见论文5.5.7），
     :param r: 配送顺序r（r中可能还包含充电站节点，并不一定像论文中都是客户节点）
@@ -191,7 +193,12 @@ def labeling(r, vehicle_type, departure_time):
     """
     
     # time_checker(r, departure_times)
+    ## 移除所有的充电站
+    r = origin_r[:]
+    r = [x for x in r if x <= 1000 and x != 0]
             
+    r = [0] + r + [0]  # 在首尾添加0
+        
     R = [None] * len(r)  # 车辆离开节点时的里程状态
     W = [None] * len(r)  # 车辆离开节点时的载重状态，至多还可以装载多少重量
     V = [None] * len(r)  # 车辆离开节点时的容积状态，至多还可以装载多少容积
@@ -217,29 +224,31 @@ def labeling(r, vehicle_type, departure_time):
         expand_12 = {'logic': False}
         expand_13 = {'logic': False}
 
-        expand_1 = expand(r, vehicle_type, i, 1, R, W, V, T, T_w, d, f)
+        expand_1 = expand(r, vehicle_type, i, 1, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:])
         if expand_1['logic']:
-            expand_11 = expand(r, vehicle_type, i+1, 1, expand_1['R'], expand_1['W'], expand_1['V'], expand_1['T'], expand_1['T_w'], expand_1['d'], expand_1['f'])
-            expand_12 = expand(r, vehicle_type, i+1, 2, expand_1['R'], expand_1['W'], expand_1['V'], expand_1['T'], expand_1['T_w'], expand_1['d'], expand_1['f'])
-            expand_13 = expand(r, vehicle_type, i+1, 3, expand_1['R'], expand_1['W'], expand_1['V'], expand_1['T'], expand_1['T_w'], expand_1['d'], expand_1['f'])
+            expand_11 = expand(r, vehicle_type, i+1, 1, expand_1['R'][:], expand_1['W'][:], expand_1['V'][:], expand_1['T'][:], expand_1['T_w'][:], expand_1['d'][:], expand_1['f'][:])
+            expand_12 = expand(r, vehicle_type, i+1, 2, expand_1['R'][:], expand_1['W'][:], expand_1['V'][:], expand_1['T'][:], expand_1['T_w'][:], expand_1['d'][:], expand_1['f'][:])
+            expand_13 = expand(r, vehicle_type, i+1, 3, expand_1['R'][:], expand_1['W'][:], expand_1['V'][:], expand_1['T'][:], expand_1['T_w'][:], expand_1['d'][:], expand_1['f'][:])
         dic_list.append(expand_1)
 
-        expand_2 = expand(r, vehicle_type, i, 2, R, W, V, T, T_w, d, f)
+        expand_2 = expand(r, vehicle_type, i, 2, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:])
         dic_list.append(expand_2)
 
         if r[i]!=0:
-            expand_3 = expand(r, vehicle_type, i, 3, R, W, V, T, T_w, d, f)
-            dic_list.append(expand_3)
+            expand_3 = expand(r, vehicle_type, i, 3, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:])
+        else:
+            expand_3 = {'logic': False}
+        dic_list.append(expand_3)
 
-        if not (expand_12['logic'] and expand_13['logic']):
+        if not (expand_12['logic'] or expand_13['logic']):
 
             feasible_dicts = [d for d in dic_list[-2:] if d['logic']]
 
             if len(feasible_dicts) == 0:
                 print("infeasible")
-                #return False
+                return origin_r, vehicle_type_ret, departure_time_ret
 
-            #min_cost_dict = min(feasible_dicts, key=lambda x: x['delta_cost'])
+            min_cost_dict = min(feasible_dicts, key=lambda x: x['delta_cost'])
             extension_type = min_cost_dict['extension']
             charge = min_cost_dict['charge']
             expand_list.append([i, extension_type, charge])
@@ -253,14 +262,13 @@ def labeling(r, vehicle_type, departure_time):
             f = min_cost_dict['f']
 
         else:
-
             feasible_dicts = [d for d in dic_list if d['logic']]
 
             if not feasible_dicts:
-                df_nodes.loc[r[j+1], 'last_receive_tm']
-                #return False
+                print("infeasible")
+                return origin_r, vehicle_type_ret, departure_time_ret
 
-            #min_cost_dict = min(feasible_dicts, key=lambda x: x['delta_cost'])
+            min_cost_dict = min(feasible_dicts, key=lambda x: x['delta_cost'])
             extension_type = min_cost_dict['extension']
             charge = min_cost_dict['charge']
             expand_list.append([i, extension_type, charge])
@@ -273,9 +281,9 @@ def labeling(r, vehicle_type, departure_time):
             d = min_cost_dict['d']
             f = min_cost_dict['f']
 
-    expand_0 = expand(r, vehicle_type, len(r)-2, 1, R, W, V, T, T_w, d, f)
+    expand_0 = expand(r, vehicle_type, len(r)-2, 1, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:])
     if not expand_0['logic']:
-        return False
+        return origin_r, vehicle_type_ret, departure_time_ret
 
     index = 0  # 记录已经插入了几个节点，用于确定插入具体位置
     for expand_operation in expand_list:
@@ -390,4 +398,7 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # main()
+    sol=Sol()
+    sol.initialization("method1")
+    labeling(sol.routes[1][:], sol.vehicle_types[1], sol.departure_times[1])
