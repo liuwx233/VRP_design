@@ -400,14 +400,20 @@ def main():
         # 如果迭代次数到达一定程度，则采用标签优化算法
         if iternum >= 0:
             for r_ind, r in enumerate(best_sol.routes):
+                old_cost = cost_route(r, best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
+                old_penalty = penalty_route(r, best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
                 best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind] = labeling(r, vehicle_type=best_sol.vehicle_types[r_ind], departure_time=best_sol.departure_times[r_ind])
+                new_cost = cost_route(best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
+                new_penalty = penalty_route(best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
 
+                best_sol.cost_val = best_sol.cost_val + new_cost - old_cost
+                best_sol.penalty_val = best_sol.penalty_val + new_penalty - old_penalty
     return best_sol
 
 
 if __name__ == '__main__':
-    # main()
-    ff = open("init_sol.bin", "rb")
-    sol = pickle.load(ff)
-    ff.close()
-    sol.penalty()
+    main()
+    # ff = open("init_sol.bin", "rb")
+    # sol = pickle.load(ff)
+    # ff.close()
+    # sol.penalty()
