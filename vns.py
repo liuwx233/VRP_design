@@ -1,4 +1,5 @@
 from Sol import *
+import matplotlib.pyplot as plt
 
 
 # TODO: 调优策略: 1. 电量和路程惩罚项调优、2. 局部搜索算法调整 3. 调整labeling里面sol.cost_val, sol.penalty_val
@@ -183,7 +184,7 @@ def expand(r, vehicle_type, i, extension=1, R=None, W=None, V=None, T=None, T_w=
 
 
 
-def labeling(origin_r, vehicle_type, departure_time):
+def labeling(origin_r, vehicle_type, departure_time, if_must=True):
     """
     TODO: 标签算法（见论文5.5.7），
     :param r: 配送顺序r（r中可能还包含充电站节点，并不一定像论文中都是客户节点）
@@ -224,18 +225,18 @@ def labeling(origin_r, vehicle_type, departure_time):
         expand_12 = {'logic': False}
         expand_13 = {'logic': False}
 
-        expand_1 = expand(r, vehicle_type, i, 1, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:])
+        expand_1 = expand(r, vehicle_type, i, 1, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:], if_must)
         if expand_1['logic']:
-            expand_11 = expand(r, vehicle_type, i+1, 1, expand_1['R'][:], expand_1['W'][:], expand_1['V'][:], expand_1['T'][:], expand_1['T_w'][:], expand_1['d'][:], expand_1['f'][:])
-            expand_12 = expand(r, vehicle_type, i+1, 2, expand_1['R'][:], expand_1['W'][:], expand_1['V'][:], expand_1['T'][:], expand_1['T_w'][:], expand_1['d'][:], expand_1['f'][:])
-            expand_13 = expand(r, vehicle_type, i+1, 3, expand_1['R'][:], expand_1['W'][:], expand_1['V'][:], expand_1['T'][:], expand_1['T_w'][:], expand_1['d'][:], expand_1['f'][:])
+            expand_11 = expand(r, vehicle_type, i+1, 1, expand_1['R'][:], expand_1['W'][:], expand_1['V'][:], expand_1['T'][:], expand_1['T_w'][:], expand_1['d'][:], expand_1['f'][:], if_must)
+            expand_12 = expand(r, vehicle_type, i+1, 2, expand_1['R'][:], expand_1['W'][:], expand_1['V'][:], expand_1['T'][:], expand_1['T_w'][:], expand_1['d'][:], expand_1['f'][:], if_must)
+            expand_13 = expand(r, vehicle_type, i+1, 3, expand_1['R'][:], expand_1['W'][:], expand_1['V'][:], expand_1['T'][:], expand_1['T_w'][:], expand_1['d'][:], expand_1['f'][:], if_must)
         dic_list.append(expand_1)
 
-        expand_2 = expand(r, vehicle_type, i, 2, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:])
+        expand_2 = expand(r, vehicle_type, i, 2, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:], if_must)
         dic_list.append(expand_2)
 
         if r[i]!=0:
-            expand_3 = expand(r, vehicle_type, i, 3, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:])
+            expand_3 = expand(r, vehicle_type, i, 3, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:], if_must)
         else:
             expand_3 = {'logic': False}
         dic_list.append(expand_3)
@@ -281,7 +282,7 @@ def labeling(origin_r, vehicle_type, departure_time):
             d = min_cost_dict['d']
             f = min_cost_dict['f']
 
-    expand_0 = expand(r, vehicle_type, len(r)-2, 1, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:])
+    expand_0 = expand(r, vehicle_type, len(r)-2, 1, R[:], W[:], V[:], T[:], T_w[:], d[:], f[:], if_must)
     if not expand_0['logic']:
         return origin_r, vehicle_type, departure_time
 
@@ -370,10 +371,21 @@ def main():
     lam = lam0  # 惩罚因子
     continue_infeasible_times = 0
     continue_feasible_times = 0
-    for iternum in range(15000):
+    init_cost = best_sol.cost_val
+    init_penalty_cost = best_sol.cost_val+lam0*best_sol.penalty_val
+    
+    # 初始化成本列表
+    costs = []
+    penalty_costs = []
+    iterations = []
+    
+    for iternum in range(10):
+        iterations.append(iternum+1)
         # 对best_sol进行vns搜索
         print("iter", iternum + 1, ":")
-        searched_sol, sol_changed = vns(best_sol, lam)
+        #searched_sol, sol_changed = vns(best_sol, lam)
+        searched_sol = best_sol
+        sol_changed = False
         print("  vns of iter", iternum + 1, "ended.")
 
         # 对S进行可行性检验，更新惩罚系数
@@ -408,11 +420,64 @@ def main():
 
                 best_sol.cost_val = best_sol.cost_val + new_cost - old_cost
                 best_sol.penalty_val = best_sol.penalty_val + new_penalty - old_penalty
+        #1 BESTSOL的cost下降
+        #2 bestsol.cost加lam0乘pena和初始解sol的cost加lam乘pena对比
+        costs.append(best_sol.cost_val)
+        penalty_costs.append(best_sol.cost_val+lam0*best_sol.penalty_val)
+    
+    # 创建图形
+    plt.figure()
+    # 绘制基准线（200000）
+    plt.axhline(y=init_cost, color='r', linestyle='--')
+    # 绘制成本函数曲线
+    plt.plot(iterations, costs, marker='o')  # 使用'o'标记每个点
+    
+    # 添加标题和轴标签
+    plt.title('Cost Function over Iterations')
+    plt.xlabel('Iterations')
+    plt.ylabel('Cost')
+    
+    # 显示图例
+    plt.legend(['Cost']) 
+
+    # 保存图形到文件
+    plt.savefig("cost_function_plot.png", dpi=300)  # 保存为PNG文件，高分辨率
+    # 显示图形
+    plt.show()
+    
+    
+    # 创建图形
+    plt.figure()
+    # 绘制基准线（200000）
+    plt.axhline(y=init_penalty_cost, color='r', linestyle='--')
+    # 绘制成本函数曲线
+    plt.plot(iterations, penalty_costs, marker='o')  # 使用'o'标记每个点
+    
+    # 添加标题和轴标签
+    plt.title('Penalty Cost Function over Iterations')
+    plt.xlabel('Iterations')
+    plt.ylabel('Penalty Cost')
+    
+    # 显示图例
+    plt.legend(['Penlaty Cost'])
+    
+    # 保存图形到文件
+    plt.savefig("penalty_cost_function_plot.png", dpi=300)  # 保存为PNG文件，高分辨率
+    # 显示图形
+    plt.show()
+    ############################
+    # best_sol.output()
+    ############################
     return best_sol
 
 
 if __name__ == '__main__':
     main()
+    '''
+    sol=Sol()
+    sol.initialization("method1")
+    sol.output()
+    '''
     # ff = open("init_sol.bin", "rb")
     # sol = pickle.load(ff)
     # ff.close()

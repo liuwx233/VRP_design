@@ -1,6 +1,7 @@
 from input import *
 import random
 import pickle
+from datetime import datetime, timedelta
 
 
 def vol_constraint_route(r, vehicle_type=1, depart_time=0):
@@ -968,6 +969,183 @@ class Sol:
                 self.departure_times[i] += min(max(waiting_time_list[i]), min(delay_time_list[i]))
 
         return self.departure_times
+    
+    def output(self):
+        # 派车单号
+        data = {}
+        trans_code = []
+        num_car = len(self.vehicle_types)
+        for i in range(num_car):
+            trans_code.append(f'DP{(i + 1):04d}')
+        data['id'] = trans_code
+
+        # 车型
+        data['vehicle_type'] = self.vehicle_types
+
+        # 顺序
+        data['route'] = self.routes
+        df_data = pd.DataFrame(data)
+        df_data['route'] = df_data['route'].apply(lambda row: ';'.join(map(str, row)))
+        print(self.routes)
+
+        # 首次出发时间
+        df_data['departure_time'] = self.departure_times
+        # print(df_data)
+        # 按照HH:MM输出
+        '''new_time = []
+        formatted_time = []
+        base_time = datetime.strptime('8:00', '%H:%M')
+        for i in range(len(self.departure_times)):
+            new_time.append(base_time + timedelta(minutes=self.departure_times[i]))
+            formatted_time.append(new_time[i].strftime('%H:%M'))
+        df_data['departure_time'] = formatted_time'''
+        # print(df_data)
+
+        # 最后返回时间
+        '''for item in self.routes:
+            start_time = []
+            for i in range(len(item)):
+                start_time += df_distance.loc[(from_point, to_point), 'spend_tm']'''
+        path_time_list = []  # 注意这个list存储的均为到达时间
+        back_time = []
+        for j in range(len(self.routes)):
+            path_time = self.departure_times[j]
+            temp_list = [self.departure_times[j]]
+            path = self.routes[j]
+            for i in range(len(path) - 1):
+                from_point = path[i]
+                to_point = path[i + 1]
+                # TODO
+                path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
+                temp_list.append(path_time)
+                # TODO
+                if to_point != 0:
+                    '''total_waiting_cost += max((df_nodes.loc[to_point, 'first_receive_tm'] - path_time),
+                                              0) * waiting_cost'''
+                    path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
+                if to_point == 0:
+                    path_time += 60
+                else:
+                    path_time += service_time
+            path_time_list.append(temp_list)  # 和route同dim的一串list存储相应节点的到达时间
+        for j in range(len(self.routes)):
+            length = len(path_time_list[j])-1
+            last_time = path_time_list[j][length]
+            back_time.append(last_time)
+        # print(path_time_list)
+        # print(back_time)
+        df_data['back_time'] = back_time
+        '''new_time2 = []
+        formatted_time2 = []
+        base_time2 = datetime.strptime('8:00', '%H:%M')
+        for i in range(len(back_time)):
+            new_time2.append(base_time2 + timedelta(minutes=int(back_time[i])))
+            formatted_time2.append(new_time2[i].strftime('%H:%M'))
+        df_data['back_time'] = formatted_time2'''
+        # print(df_data)
+
+        # 总里程
+        total_distance = []
+        for i in range(len(self.routes)):
+            distance = 0
+            path = self.routes[i]
+            for j in range(len(path)-1):
+                from_point = path[j]
+                to_point = path[j+1]
+                # TODO: 改
+                # df_distance.loc[(from_point, to_point), 'distance']
+                # df_vehicle.loc[vehicle_type, 'unit_trans_cost']
+                distance += df_distance.loc[(from_point, to_point), 'distance']
+            total_distance.append(distance)
+        # print(total_distance)
+        df_data['distance'] = total_distance
+
+        # 运输成本
+        total_travel_cost = []
+        for i in range(len(self.routes)):
+            travel_cost = 0
+            path = self.routes[i]
+            for j in range(len(path) - 1):
+                from_point = path[j]
+                to_point = path[j + 1]
+                travel_cost += df_distance.loc[(from_point, to_point), 'distance'] * df_vehicle.loc[
+                    self.vehicle_types[i], 'unit_trans_cost'] / 1000
+            total_travel_cost.append(travel_cost)
+        # self.travel_cost = total_travel_cost  # 计算行驶成本
+        print(total_travel_cost)
+        trans_cost_rounded = [round(num, 2) for num in total_travel_cost]
+        df_data['transport_cost'] = trans_cost_rounded
+
+        # 充电成本
+        total_charging_cost = []
+        for path in self.routes:
+            charge_cost = 0
+            for i in range(len(path)):
+                if path[i] in index_recharge:
+                    charge_cost += charging_cost * service_time
+            total_charging_cost.append(charge_cost)
+        df_data['recharge_cost'] = total_charging_cost
+
+        # 等待成本
+        path_time_list = []  # 均为到达时间
+        total_waiting_cost = []
+        for j in range(len(self.routes)):
+            total_wait_cost = 0
+            path_time = self.departure_times[j]
+            temp_list = [self.departure_times[j]]
+            path = self.routes[j]
+            for i in range(len(path) - 1):
+                from_point = path[i]
+                to_point = path[i + 1]
+                # TODO
+                path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
+                temp_list.append(path_time)
+                # TODO
+                if to_point != 0:
+                    total_wait_cost += max((df_nodes.loc[to_point, 'first_receive_tm'] - path_time),
+                                              0) * waiting_cost
+                    path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
+                if to_point == 0:
+                    path_time += 60
+                else:
+                    path_time += service_time
+            path_time_list.append(temp_list)  # 和route同dim的一串list存储相应节点的到达时间
+            total_wait_cost += (self.routes[j].count(0) - 2) * waiting_cost * 60  # 除去头尾的0，每经过一次depot存在1h等待成本
+            total_waiting_cost.append(total_wait_cost)
+        waiting_cost_rounded = [round(num, 2) for num in total_waiting_cost]
+        df_data['wait_cost'] = waiting_cost_rounded
+
+        # 固定成本
+        total_fix_cost = []
+        fixed_use_cost_int = []
+        for j in range(len(self.routes)):
+            total_fix_cost_value = 0
+            if self.vehicle_types[j] == 1:
+                total_fix_cost_value = df_vehicle.loc[1, 'vehicle_cost']
+            if self.vehicle_types[j] == 2:
+                total_fix_cost_value = df_vehicle.loc[2, 'vehicle_cost']
+            total_fix_cost.append(total_fix_cost_value)
+        for element in total_fix_cost:
+            fixed_use_cost_int.append(int(element))
+        df_data['fix_cost'] = fixed_use_cost_int
+
+        # 总成本
+        total_cost = [w + x + y + z for w, x, y, z in zip(total_travel_cost, total_charging_cost, total_waiting_cost, total_fix_cost)]
+        total_cost_rounded = [round(num, 2) for num in total_cost]
+        df_data['total_cost'] = total_cost_rounded
+
+        # 充电次数
+        charge_cnt = []
+        for path in self.routes:
+            charge_count = 0
+            for i in range(len(path)):
+                if path[i] in index_recharge:
+                    charge_count = charge_count + 1
+            charge_cnt.append(charge_count)
+        df_data['recharge_num'] = charge_cnt
+        print(df_data)
+
+        df_data.to_excel('output1212.xlsx', index=False)
 
 
 if __name__ == '__main__':
