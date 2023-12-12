@@ -2,7 +2,7 @@ from Sol import *
 import matplotlib.pyplot as plt
 
 
-# TODO: 调优策略: 1. 电量和路程惩罚项调优、2. 局部搜索算法调整 3. 调整labeling里面sol.cost_val, sol.penalty_val
+# TODO: 调优策略: 1. 电量和路程惩罚项调优、2. 局部搜索算法调整
 
 # def cost_route(r, vehicle_type=1, depart_time=0, penalty=False, penalty_lam=0):
 #     """
@@ -304,6 +304,7 @@ def labeling(origin_r, vehicle_type, departure_time, if_must=True):
 def local_search(sol: Sol, neighbor_structure, lam) -> Sol:
     # 爬山算法
     best_sol = sol
+    iter = 0
     while True:
         neighbor_ls = best_sol.neighbor(neighbor_structure)
         find_better = False
@@ -315,6 +316,9 @@ def local_search(sol: Sol, neighbor_structure, lam) -> Sol:
                 best_sol_value = n_val
                 best_sol = n
         if not find_better:
+            break
+        iter += 1
+        if iter > MAX_LOCAL_ITER_NUM:
             break
     return best_sol
 
@@ -379,13 +383,11 @@ def main():
     penalty_costs = []
     iterations = []
     
-    for iternum in range(10):
+    for iternum in range(100):
         iterations.append(iternum+1)
         # 对best_sol进行vns搜索
         print("iter", iternum + 1, ":")
-        #searched_sol, sol_changed = vns(best_sol, lam)
-        searched_sol = best_sol
-        sol_changed = False
+        searched_sol, sol_changed = vns(best_sol, lam)
         print("  vns of iter", iternum + 1, "ended.")
 
         # 对S进行可行性检验，更新惩罚系数
@@ -424,7 +426,9 @@ def main():
         #2 bestsol.cost加lam0乘pena和初始解sol的cost加lam乘pena对比
         costs.append(best_sol.cost_val)
         penalty_costs.append(best_sol.cost_val+lam0*best_sol.penalty_val)
-    
+        if best_sol.penalty_val <= 0:
+            if iternum > 15 or init_penalty_cost - (best_sol.cost_val + lam * best_sol.penalty_val) / init_penalty_cost > 0.25:
+                break
     # 创建图形
     plt.figure()
     # 绘制基准线（200000）
@@ -443,7 +447,7 @@ def main():
     # 保存图形到文件
     plt.savefig("cost_function_plot.png", dpi=300)  # 保存为PNG文件，高分辨率
     # 显示图形
-    plt.show()
+    # plt.show()
     
     
     # 创建图形
@@ -464,10 +468,10 @@ def main():
     # 保存图形到文件
     plt.savefig("penalty_cost_function_plot.png", dpi=300)  # 保存为PNG文件，高分辨率
     # 显示图形
-    plt.show()
-    ############################
-    # best_sol.output()
-    ############################
+    # plt.show()
+    # 输出最优解
+    best_sol.output()
+
     return best_sol
 
 
