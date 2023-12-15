@@ -1,7 +1,10 @@
 from Sol import *
 import matplotlib.pyplot as plt
 
-
+# 初始化成本列表, 用于画图
+costs = []
+penalty_costs = []
+iterations = []
 # TODO: 调优策略: 1. 电量和路程惩罚项调优、2. 局部搜索算法调整
 
 # def cost_route(r, vehicle_type=1, depart_time=0, penalty=False, penalty_lam=0):
@@ -357,11 +360,12 @@ def vns(sol: Sol, lam: float):
     :param sol:
     :return: sol变邻域搜索之后的解, best_sol_changed: 搜索结果和原先解不同
     """
-    neighbor_structures = ['2opt*', 'relocate', 'swap']
+    neighbor_structures = ['2opt*', 'relocate', 'swap', 'vehicle']
     neighbor_structures_local = ['2opt*', 'relocate', 'swap']
     i = 0
     best_sol = sol
     best_sol_changed = False
+    iter = 0
     while i < len(neighbor_structures):
         # Shaking: 将x'进行扰动
         x_shaked = random.sample(best_sol.neighbor(method=neighbor_structures[i]), 1)[0]
@@ -382,11 +386,18 @@ def vns(sol: Sol, lam: float):
                 best_sol_changed = True
                 print("  It is a better solution:")
                 print("    Cost:", x_local.cost_val, "Penalty:", x_local.penalty_val)
+                costs.append(x_local.cost_val)
+                penalty_costs.append(best_sol.cost_val+lam0*best_sol.penalty_val)
                 break
         if find_local_best:
             i = 0
         else:
             i = i + 1
+
+        iter += 1
+        if iter > MAX_VNS_ITER_NUM:
+            break
+
     return best_sol, best_sol_changed
 
 
@@ -400,18 +411,18 @@ def main():
     ff.close()
 
     best_sol = sol
+    feasible_best_sol = None  # 初始没有可行解
     lam = lam0  # 惩罚因子
     continue_infeasible_times = 0
     continue_feasible_times = 0
+
+    # 初始化画图用列表
     init_cost = best_sol.cost_val
+    costs.append(init_cost)
+    penalty_costs.append(best_sol.cost_val+lam0*best_sol.penalty_val)
     init_penalty_cost = best_sol.cost_val+lam0*best_sol.penalty_val
-    
-    # 初始化成本列表
-    costs = []
-    penalty_costs = []
-    iterations = []
-    
-    for iternum in range(1):
+
+    for iternum in range(3):
         iterations.append(iternum+1)
         # 对best_sol进行vns搜索
         print("iter", iternum + 1, ":")
@@ -437,14 +448,20 @@ def main():
                 lam /= 10
                 continue_feasible_times = 0
         # 如果可行而且搜索到的解比原先解要好，更新解
-        if feasible and sol_changed:
+        if sol_changed:
             best_sol = searched_sol
+            if feasible:
+                feasible_best_sol = best_sol
+                print("  Find a feasible better solution:")
+                print("    Cost:", feasible_best_sol.cost_val, "Penalty:", feasible_best_sol.penalty_val)
         # 如果迭代次数到达一定程度，则采用标签优化算法
         if iternum >= 0:
             for r_ind, r in enumerate(best_sol.routes):
                 old_cost = cost_route(r, best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
                 old_penalty = penalty_route(r, best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
+
                 best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind] = labeling(r, vehicle_type=best_sol.vehicle_types[r_ind], departure_time=best_sol.departure_times[r_ind])
+
                 new_cost = cost_route(best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
                 new_penalty = penalty_route(best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
 
@@ -452,17 +469,17 @@ def main():
                 best_sol.penalty_val = best_sol.penalty_val + new_penalty - old_penalty
         #1 BESTSOL的cost下降
         #2 bestsol.cost加lam0乘pena和初始解sol的cost加lam乘pena对比
-        costs.append(best_sol.cost_val)
-        penalty_costs.append(best_sol.cost_val+lam0*best_sol.penalty_val)
-        if best_sol.penalty_val <= 0:
-            if iternum > 15 or init_penalty_cost - (best_sol.cost_val + lam * best_sol.penalty_val) / init_penalty_cost > 0.25:
+        # costs.append(best_sol.cost_val)
+        # penalty_costs.append(best_sol.cost_val+lam0*best_sol.penalty_val)
+        if feasible_best_sol is not None:
+            if iternum > 20 or init_penalty_cost - (best_sol.cost_val + lam * best_sol.penalty_val) / init_penalty_cost > 0.30:
                 break
     # 创建图形
     plt.figure()
     # 绘制基准线（200000）
     plt.axhline(y=init_cost, color='r', linestyle='--')
     # 绘制成本函数曲线
-    plt.plot(iterations, costs, marker='o')  # 使用'o'标记每个点
+    plt.plot(list(range(1, len(costs) + 1)), costs, marker='o')  # 使用'o'标记每个点
     
     # 添加标题和轴标签
     plt.title('Cost Function over Iterations')
@@ -483,7 +500,7 @@ def main():
     # 绘制基准线（200000）
     plt.axhline(y=init_penalty_cost, color='r', linestyle='--')
     # 绘制成本函数曲线
-    plt.plot(iterations, penalty_costs, marker='o')  # 使用'o'标记每个点
+    plt.plot(list(range(1, len(penalty_costs) + 1)), penalty_costs, marker='o')  # 使用'o'标记每个点
     
     # 添加标题和轴标签
     plt.title('Penalty Cost Function over Iterations')
@@ -491,7 +508,7 @@ def main():
     plt.ylabel('Penalty Cost')
     
     # 显示图例
-    plt.legend(['Penlaty Cost'])
+    # plt.legend(['Penlaty Cost'])
     
     # 保存图形到文件
     plt.savefig("penalty_cost_function_plot.png", dpi=300)  # 保存为PNG文件，高分辨率
@@ -505,11 +522,12 @@ def main():
 
 if __name__ == '__main__':
     main()
-    '''
-    sol=Sol()
-    sol.initialization("method1")
-    sol.output()
-    '''
+
+    # ff = open("init_sol.bin", "rb")
+    # sol = pickle.load(ff)
+    # ff.close()
+    # sol.output()
+
     # ff = open("init_sol.bin", "rb")
     # sol = pickle.load(ff)
     # ff.close()

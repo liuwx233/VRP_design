@@ -855,6 +855,21 @@ class Sol:
                 neighbor_sol.cost_val = neighbor_sol.cost_val + new_cost - old_cost
                 neighbor_sol.penalty_val = neighbor_sol.penalty_val + new_penalty - old_penalty
 
+            if method == 'vehicle':
+                # 随机改变一个车型
+                r1_ind = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
+
+                old_cost = cost_route(neighbor_sol.routes[r1_ind],  neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind])
+                old_penalty = penalty_route(neighbor_sol.routes[r1_ind],  neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind])
+
+                self.departure_times[r1_ind] = 1 if self.departure_times[r1_ind] == 2 else 2
+
+                new_cost = cost_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind])
+                new_penalty = penalty_route(neighbor_sol.routes[r1_ind], neighbor_sol.vehicle_types[r1_ind], neighbor_sol.departure_times[r1_ind])
+
+                neighbor_sol.cost_val = neighbor_sol.cost_val + new_cost - old_cost
+                neighbor_sol.penalty_val = neighbor_sol.penalty_val + new_penalty - old_penalty
+
             if method == 'insert_remove':
 
                 flag = random.sample([0, 1], 1)[0]
@@ -971,6 +986,11 @@ class Sol:
         return self.departure_times
     
     def output(self):
+        # debug
+        print(len(self.routes))
+        print(len(self.vehicle_types))
+        print(len(self.departure_times))
+
         # 派车单号
         data = {}
         trans_code = []
@@ -1154,6 +1174,11 @@ if __name__ == '__main__':
     method = 'method2'
     vol_feasible = False
     sol.initialization(method, vol_feasible)
+    # ff = open("init_sol.bin", "rb")
+    # sol = pickle.load(ff)
+    # ff.close()
+    # sol.vehicle_types = [1 for i in range(len(sol.routes))]
+    # sol.departure_times = [0 for i in range(len(sol.routes))]
     fBin = open("init_sol.bin", 'wb')
     pickle.dump(sol, fBin)
     fBin.close()
