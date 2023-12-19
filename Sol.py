@@ -397,100 +397,110 @@ class Sol:
         4. charging cost
         :return: cost
         """
-        total_fix_cost = self.vehicle_types.count(1) * df_vehicle.loc[1, 'vehicle_cost'] + self.vehicle_types.count(2) * df_vehicle.loc[2, 'vehicle_cost']
-        self.fix_cost = total_fix_cost  # 计算固定成本
+        # total_fix_cost = self.vehicle_types.count(1) * df_vehicle.loc[1, 'vehicle_cost'] + self.vehicle_types.count(2) * df_vehicle.loc[2, 'vehicle_cost']
+        # self.fix_cost = total_fix_cost  # 计算固定成本
+        #
+        # total_travel_cost = 0
+        # for i in range(len(self.routes)):
+        #     travel_cost = 0
+        #     path = self.routes[i]
+        #     for j in range(len(path)-1):
+        #         from_point = path[j]
+        #         to_point = path[j+1]
+        #         # TODO: 改
+        #         # df_distance.loc[(from_point, to_point), 'distance']
+        #         # df_vehicle.loc[vehicle_type, 'unit_trans_cost']
+        #         travel_cost += df_distance.loc[(from_point, to_point), 'distance'] * df_vehicle.loc[self.vehicle_types[i], 'unit_trans_cost'] / 1000
+        #     total_travel_cost += travel_cost
+        # self.travel_cost = total_travel_cost  # 计算行驶成本
+        #
+        # total_waiting_cost = 0
+        # path_time_list = []  # 注意这个list存储的均为到达时间
+        # for j in range(len(self.routes)):
+        #     path_time = self.departure_times[j]
+        #     temp_list = [self.departure_times[j]]
+        #     path = self.routes[j]
+        #     for i in range(len(path)-1):
+        #         from_point = path[i]
+        #         to_point = path[i+1]
+        #         # TODO
+        #         path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
+        #         temp_list.append(path_time)
+        #         # TODO
+        #         if to_point != 0:
+        #             total_waiting_cost += max((df_nodes.loc[to_point, 'first_receive_tm'] - path_time), 0) * waiting_cost
+        #             path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
+        #         if to_point == 0:
+        #             path_time += 60
+        #         else:
+        #             path_time += service_time
+        #     path_time_list.append(temp_list)  # 和route同dim的一串list存储相应节点的到达时间
+        #     total_waiting_cost += (self.routes[j].count(0) - 2) * waiting_cost * 60  # 除去头尾的0，每经过一次depot存在1h等待成本
+        # self.waiting_cost = total_waiting_cost
+        #
+        # total_charging_cost = 0
+        # for path in self.routes:
+        #     for i in range(len(path)):
+        #         if path[i] in index_recharge:
+        #             total_charging_cost += charging_cost * service_time
+        # self.charging_cost = total_charging_cost
+        #
+        # self.total_cost = self.fix_cost + self.travel_cost + self.waiting_cost + self.charging_cost
+        #
+        # return self.total_cost
 
-        total_travel_cost = 0
-        for i in range(len(self.routes)):
-            travel_cost = 0
-            path = self.routes[i]
-            for j in range(len(path)-1):
-                from_point = path[j]
-                to_point = path[j+1]
-                # TODO: 改
-                # df_distance.loc[(from_point, to_point), 'distance']
-                # df_vehicle.loc[vehicle_type, 'unit_trans_cost']
-                travel_cost += df_distance.loc[(from_point, to_point), 'distance'] * df_vehicle.loc[self.vehicle_types[i], 'unit_trans_cost'] / 1000
-            total_travel_cost += travel_cost
-        self.travel_cost = total_travel_cost  # 计算行驶成本
-
-        total_waiting_cost = 0
-        path_time_list = []  # 注意这个list存储的均为到达时间
-        for j in range(len(self.routes)):
-            path_time = self.departure_times[j]
-            temp_list = [self.departure_times[j]]
-            path = self.routes[j]
-            for i in range(len(path)-1):
-                from_point = path[i]
-                to_point = path[i+1]
-                # TODO
-                path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
-                temp_list.append(path_time)
-                # TODO
-                if to_point != 0:
-                    total_waiting_cost += max((df_nodes.loc[to_point, 'first_receive_tm'] - path_time), 0) * waiting_cost
-                    path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
-                if to_point == 0:
-                    path_time += 60
-                else:
-                    path_time += service_time
-            path_time_list.append(temp_list)  # 和route同dim的一串list存储相应节点的到达时间
-            total_waiting_cost += (self.routes[j].count(0) - 2) * waiting_cost * 60  # 除去头尾的0，每经过一次depot存在1h等待成本
-        self.waiting_cost = total_waiting_cost
-
-        total_charging_cost = 0
-        for path in self.routes:
-            for i in range(len(path)):
-                if path[i] in index_recharge:
-                    total_charging_cost += charging_cost * service_time
-        self.charging_cost = total_charging_cost
-
-        self.total_cost = self.fix_cost + self.travel_cost + self.waiting_cost + self.charging_cost
-
-        return self.total_cost
+        total_cost = 0
+        for r_ind, r in enumerate(self.routes):
+            total_cost += cost_route(r, self.vehicle_types[r_ind], self.departure_times[r_ind])
+        return total_cost
 
     def penalty(self):
         """
         包含两部分的内容：违反时间约束的惩罚成本（单位：分钟）+违反电量约束的惩罚成本（单位：百米）
         :return: 惩罚成本
         """
-        penalty_time = []
-        penalty_elec = []
-        for i in range(len(self.routes)):
-            path_time = self.departure_times[i]
-            charge = df_vehicle.loc[self.vehicle_types[i], 'driving_range']
-            res_charge = charge
-            time_penalty = 0
-            charge_penalty = 0
+        # penalty_time = []
+        # penalty_elec = []
+        # for i in range(len(self.routes)):
+        #     path_time = self.departure_times[i]
+        #     charge = df_vehicle.loc[self.vehicle_types[i], 'driving_range']
+        #     res_charge = charge
+        #     time_penalty = 0
+        #     charge_penalty = 0
+        #
+        #     for j in range(len(self.routes[i])-1):
+        #         from_point = self.routes[i][j]
+        #         to_point = self.routes[i][j+1]
+        #
+        #         path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
+        #         if to_point >= 1 and to_point <= 1000:
+        #             time_penalty += max((path_time - df_nodes.loc[to_point, 'last_receive_tm']), 0) * Penalty_TW  # 晚到惩罚，单位：分钟
+        #         time_penalty += max((path_time - time_horizon), 0)  # 所有点超过time_horizon加一个额外的惩罚
+        #         if to_point != 0:  # 更新时间参数
+        #             path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
+        #         if to_point == 0:
+        #             path_time += 60
+        #         else:
+        #             path_time += service_time
+        #
+        #         res_charge = res_charge - df_distance.loc[(from_point, to_point), 'distance']
+        #         if res_charge < 0:
+        #             charge_penalty += -res_charge * Penalty_range  # 电量惩罚，单位：百米
+        #         if to_point > 1000:  # 更新电量参数
+        #             res_charge = charge
+        #         if to_point == 0:  # 回depot也可以充满的
+        #             res_charge = charge
+        #
+        #     penalty_time.append(time_penalty)
+        #     penalty_elec.append(charge_penalty)
+        #
+        # total_penalty_cost = sum(penalty_time) + sum(penalty_elec)
+        #
+        # return total_penalty_cost
 
-            for j in range(len(self.routes[i])-1):
-                from_point = self.routes[i][j]
-                to_point = self.routes[i][j+1]
-
-                path_time += df_distance.loc[(from_point, to_point), 'spend_tm']
-                if to_point >= 1 and to_point <= 1000:
-                    time_penalty += max((path_time - df_nodes.loc[to_point, 'last_receive_tm']), 0) * Penalty_TW  # 晚到惩罚，单位：分钟
-                time_penalty += max((path_time - time_horizon), 0)  # 所有点超过time_horizon加一个额外的惩罚
-                if to_point != 0:  # 更新时间参数
-                    path_time = max(df_nodes.loc[to_point, 'first_receive_tm'], path_time)
-                if to_point == 0:
-                    path_time += 60
-                else:
-                    path_time += service_time
-
-                res_charge = res_charge - df_distance.loc[(from_point, to_point), 'distance']
-                if res_charge < 0:
-                    charge_penalty += -res_charge * Penalty_range  # 电量惩罚，单位：百米
-                if to_point > 1000:  # 更新电量参数
-                    res_charge = charge
-                if to_point == 0:  # 回depot也可以充满的
-                    res_charge = charge
-
-            penalty_time.append(time_penalty)
-            penalty_elec.append(charge_penalty)
-
-        total_penalty_cost = sum(penalty_time) + sum(penalty_elec)
-
+        total_penalty_cost = 0
+        for r_ind, r in enumerate(self.routes):
+            total_penalty_cost += penalty_route(r, self.vehicle_types[r_ind], self.departure_times[r_ind])
         return total_penalty_cost
 
     def penalty_cost(self, lam):
