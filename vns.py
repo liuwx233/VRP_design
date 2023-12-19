@@ -145,14 +145,14 @@ def expand(r, vehicle_type, i, extension=1, R=None, W=None, V=None, T=None, T_w=
             premise_penalty = premise2 and premise3 and premise4 and premise5
             if if_must == False:
                 if not premise_penalty:
-                    return {'logic': False, 'delta_cost': penalty_cost, 'extension': extension, 'charge': None, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
+                    return {'logic': False, 'delta_cost': penalty_cost, 'extension': extension, 'charge': k, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
                 else:
-                    return {'logic': True, 'delta_cost': penalty_cost, 'extension': extension, 'charge': None, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
+                    return {'logic': True, 'delta_cost': penalty_cost, 'extension': extension, 'charge': k, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
             else:
                 if not premise:
-                    return {'logic': False, 'delta_cost': delta_cost, 'extension': extension, 'charge': None, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
+                    return {'logic': False, 'delta_cost': delta_cost, 'extension': extension, 'charge': k, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
                 else:
-                    return {'logic': True, 'delta_cost': delta_cost, 'extension': extension, 'charge': None, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
+                    return {'logic': True, 'delta_cost': delta_cost, 'extension': extension, 'charge': k, 'R': R, 'W': W, 'V': V, 'T': T, 'T_w': T_w, 'd': d, 'f': f}
 
         if extension == 3:
             T[i+1] = max(T[i] + df_distance.loc[(r[i], 0), "spend_tm"] + service_time_depot + df_distance.loc[(0, r[i+1]), "spend_tm"], df_nodes.loc[r[i+1], "first_receive_tm"]) + service_time
