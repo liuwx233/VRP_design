@@ -374,6 +374,9 @@ def vns(sol: Sol, lam: float):
         find_local_best = False
         while j < len(neighbor_structures_local):
             x_local = local_search(x_shaked, neighbor_structures_local[j], lam)
+            # 由于未知原因，penalty会为负数，因此每次vns迭代重新计算一次penalty
+            x_local.penalty_val = x_local.penalty()
+            # x_local.cost_val = x_local.cost()
             print("  local search of " + neighbor_structures_local[j] + " :", x_local.cost_val + lam * x_local.penalty_val)
             if x_local.cost_val + lam * x_local.penalty_val < x_shaked.cost_val + lam * x_shaked.penalty_val:
                 x_shaked = x_local
@@ -403,12 +406,14 @@ def vns(sol: Sol, lam: float):
 
 def main():
     # method1读取方式
-    sol = Sol()
-    sol.initialization('method1')
+    if INIT_METHOD == 1:
+        sol = Sol()
+        sol.initialization('method1')
     # method2读取方式
-    # ff = open("init_sol.bin", "rb")
-    # sol = pickle.load(ff)
-    # ff.close()
+    else:
+        ff = open("init_sol.bin", "rb")
+        sol = pickle.load(ff)
+        ff.close()
 
     best_sol = sol
     feasible_best_sol = None  # 初始没有可行解
@@ -460,7 +465,7 @@ def main():
                 old_cost = cost_route(r, best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
                 old_penalty = penalty_route(r, best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
 
-                best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind] = labeling(r, vehicle_type=best_sol.vehicle_types[r_ind], departure_time=best_sol.departure_times[r_ind], if_must=False)
+                best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind] = labeling(r, vehicle_type=best_sol.vehicle_types[r_ind], departure_time=best_sol.departure_times[r_ind], if_must=LABEL_IF_MUST)
 
                 new_cost = cost_route(best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
                 new_penalty = penalty_route(best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
@@ -472,8 +477,14 @@ def main():
         # costs.append(best_sol.cost_val)
         # penalty_costs.append(best_sol.cost_val+lam0*best_sol.penalty_val)
         if feasible_best_sol is not None:
-            if iternum > 15 or init_penalty_cost - (best_sol.cost_val + lam * best_sol.penalty_val) / init_penalty_cost > 0.30:
+            if iternum > MAX_MAIN_ITER_NUM or init_penalty_cost - (best_sol.cost_val + lam * best_sol.penalty_val) / init_penalty_cost > MAX_MAIN_GAP:
                 break
+    # 输出文件字符串
+    out_str = "-init1" if INIT_METHOD == 1 else "-init2"
+    out_str += "-labeltrue" if LABEL_IF_MUST else "-labelfalse"
+    out_str += ("-iter" + str(MAX_MAIN_ITER_NUM))
+    out_str += ("-gap" + str(MAX_MAIN_GAP))
+
     # 创建图形
     plt.figure()
     # 绘制基准线（200000）
@@ -490,7 +501,7 @@ def main():
     plt.legend(['Cost']) 
 
     # 保存图形到文件
-    plt.savefig("cost_function_plot-init2-labelfalse.png", dpi=300)  # 保存为PNG文件，高分辨率
+    plt.savefig("cost_function_plot" + out_str + ".png", dpi=300)  # 保存为PNG文件，高分辨率
     # 显示图形
     # plt.show()
     
@@ -511,11 +522,11 @@ def main():
     # plt.legend(['Penlaty Cost'])
     
     # 保存图形到文件
-    plt.savefig("penalty_cost_function_plot-init2-labelfalse.png", dpi=300)  # 保存为PNG文件，高分辨率
+    plt.savefig("penalty_cost_function_plot" + out_str + ".png", dpi=300)  # 保存为PNG文件，高分辨率
     # 显示图形
     # plt.show()
     # 输出最优解
-    best_sol.output()
+    best_sol.output(out_str)
 
     return best_sol
 

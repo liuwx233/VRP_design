@@ -995,7 +995,7 @@ class Sol:
 
         return self.departure_times
     
-    def output(self):
+    def output(self, out_str):
         # debug
         print(len(self.routes))
         print(len(self.vehicle_types))
@@ -1175,7 +1175,7 @@ class Sol:
         df_data['recharge_num'] = charge_cnt
         print(df_data)
 
-        df_data.to_excel('output1212.xlsx', index=False)
+        df_data.to_excel('output' + out_str + ".xlsx", index=False)
 
 
 if __name__ == '__main__':

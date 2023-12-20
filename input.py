@@ -39,6 +39,11 @@ Penalty_TW = 1
 Penalty_range = 1 / 50
 MAX_LOCAL_ITER_NUM = 50
 MAX_VNS_ITER_NUM = 500
+MAX_MAIN_ITER_NUM = 60
+MAX_MAIN_GAP = 0.3
+LABEL_IF_MUST = False
+INIT_METHOD = 2
+
 
 # x_o = [[[[]]]]  # 四层依次是第k类车、第l辆、访问路径从i到O再到j，为方便起见x_o定义成与x同dim的
 # distance_matrix = [[]]  # 从i到j的距离矩阵,
