@@ -231,6 +231,9 @@ def labeling(origin_r, vehicle_type, departure_time, if_must=True):
 
     r = [0] + r + [0]  # 在首尾添加0
 
+    if len(r) == 2:
+        return [0, 0], vehicle_type, departure_time
+
     R = [None] * len(r)  # 车辆离开节点时的里程状态
     W = [None] * len(r)  # 车辆离开节点时的载重状态，至多还可以装载多少重量
     V = [None] * len(r)  # 车辆离开节点时的容积状态，至多还可以装载多少容积
@@ -460,15 +463,25 @@ def main():
                 print("  Find a feasible better solution:")
                 print("    Cost:", feasible_best_sol.cost_val, "Penalty:", feasible_best_sol.penalty_val)
         # 如果迭代次数到达一定程度，则采用标签优化算法
-        if iternum >= 5:
+        if iternum >= 0:
             for r_ind, r in enumerate(best_sol.routes):
                 old_cost = cost_route(r, best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
                 old_penalty = penalty_route(r, best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
 
                 best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind] = labeling(r, vehicle_type=best_sol.vehicle_types[r_ind], departure_time=best_sol.departure_times[r_ind], if_must=LABEL_IF_MUST)
-
-                new_cost = cost_route(best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
-                new_penalty = penalty_route(best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
+                # 修补labeling结果
+                best_sol.routes[r_ind] = [elem for elem in best_sol.routes[r_ind] if elem is not None]
+                if len(best_sol.routes[r_ind]) == 2:
+                    del best_sol.routes[r_ind]
+                    new_cost = 0
+                    new_penalty = 0
+                # if best_sol.routes[r_ind][0] != 0:
+                #     best_sol.routes[r_ind].insert(0, 0)
+                # if best_sol.routes[r_ind][-1] != 0:
+                #     best_sol.routes[r_ind].append(0)
+                else:
+                    new_cost = cost_route(best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
+                    new_penalty = penalty_route(best_sol.routes[r_ind], best_sol.vehicle_types[r_ind], best_sol.departure_times[r_ind])
 
                 best_sol.cost_val = best_sol.cost_val + new_cost - old_cost
                 best_sol.penalty_val = best_sol.penalty_val + new_penalty - old_penalty

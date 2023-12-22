@@ -59,6 +59,9 @@ def penalty_route(r, vehicle_type=1, depart_time=0):
     要加上所有的cost！
     :return: 惩罚成本
     """
+    if len(r) == 2:
+        print("warning: route [0,0]")
+        return 0
     penalty_time = 0
     penalty_elec = 0
     charge = df_vehicle.loc[vehicle_type, 'driving_range']
@@ -106,6 +109,9 @@ def cost_route(r, vehicle_type=1, depart_time=0):
     :return: 这条路的成本
     TODO: 重新实现目标函数，加入惩罚项
     """
+    if len(r) == 2:
+        print("warning: route [0,0]")
+        return 0
     total_fix_cost = 0
     # if vehicle_type == 1:
     #     total_fix_cost = df_vehicle.iloc[0][8]
@@ -754,6 +760,12 @@ class Sol:
                 neighbor_sol.cost_val = neighbor_sol.cost_val + new_cost - old_cost
                 neighbor_sol.penalty_val = neighbor_sol.penalty_val + new_penalty - old_penalty
 
+                # 如果有[0,0]路，删掉
+                if len(neighbor_sol.routes[r1_ind]) == 2:
+                    del neighbor_sol.routes[r1_ind]
+                if len(neighbor_sol.routes[r2_ind]) == 2:
+                    del neighbor_sol.routes[r2_ind]
+
             if method == 'relocate':
                 # # 随机选择一个客户节点，
                 # select_route_num = random.sample(range(0, len(neighbor_sol.routes)), 1)[0]
@@ -809,6 +821,9 @@ class Sol:
 
                 neighbor_sol.cost_val = neighbor_sol.cost_val + new_cost - old_cost
                 neighbor_sol.penalty_val = neighbor_sol.penalty_val + new_penalty - old_penalty
+
+                if len(neighbor_sol.routes[r1_ind]) == 2:
+                    del neighbor_sol.routes[r1_ind]
 
             if method == 'swap':
                 # 随机选两个客户节点点并交换位置
